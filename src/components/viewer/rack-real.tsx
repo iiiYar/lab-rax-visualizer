@@ -1,7 +1,9 @@
 import { Fragment } from 'react'
-import { SCALE } from '../../domain/constants'
+import { SCALE, shelfDeviceSlots } from '../../domain/constants'
 import {
   DEPTH_RAIL_FOOT_HOLE_OFFSET_MM,
+  DEVICE_EXTRA_ROT_X,
+  DEVICE_TYPE_PARTS,
   FOOT_HEIGHT_MM,
   MODEL_FILES,
   RACK_HALF_DEPTH_MM,
@@ -13,8 +15,9 @@ import {
   VERTICAL_RAIL_FILES,
   WIDTH_RAIL_BAR_TOP_MM,
   decomposeIntoSegments,
+  devicePartColor,
 } from '../../domain/models'
-import type { ShelfType } from '../../domain/types'
+import type { DeviceType, ShelfType } from '../../domain/types'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
 import type { PreparedGeometry } from './materials/use-model-geometry'
@@ -59,6 +62,8 @@ export function RackReal() {
   const shelfFan80mm2u = useStlPart(SHELF_TYPE_FILES['shelf-plate-80mm-fan-2u'], Math.PI, Math.PI / 2)
   const shelfKeystone1u = useStlPart(SHELF_TYPE_FILES['shelf-plate-keystone-1u'], Math.PI, Math.PI / 2)
   const shelfSbc72u = useStlPart(SHELF_TYPE_FILES['shelf-sbc-7-2u'])
+  const shelfMinisforumMs1u = useStlPart(SHELF_TYPE_FILES['shelf-minisforum-ms-1u'])
+  const shelfTinyRackLeftKeystone = useStlPart(SHELF_TYPE_FILES['shelf-tiny-rack-left-keystone'])
   const shelfGeoByType: Record<ShelfType, PreparedGeometry> = {
     'plate-1u': plate1u,
     'plate-2u': plate2u,
@@ -68,6 +73,34 @@ export function RackReal() {
     'shelf-plate-80mm-fan-2u': shelfFan80mm2u,
     'shelf-plate-keystone-1u': shelfKeystone1u,
     'shelf-sbc-7-2u': shelfSbc72u,
+    'shelf-minisforum-ms-1u': shelfMinisforumMs1u,
+    'shelf-tiny-rack-left-keystone': shelfTinyRackLeftKeystone,
+  }
+
+  // Devices: one entry per rendered part of a device model (a Noctua fan is a
+  // beige frame plus a brown impeller; each keystone jack is a cream body
+  // plus a dark socket insert), loaded up front like the shelves and instanced
+  // per fitted slot.
+  // DEVICE_EXTRA_ROT_X turns a device's own Z axis into the scene's depth axis
+  // (fans blow front-to-back); the MS-01 is modelled Z-up already, so it takes
+  // the plain bake.
+  const [fanFramePart, fanImpellerPart] = DEVICE_TYPE_PARTS['fan-noctua-40mm']
+  const fanFrame = useStlPart(fanFramePart.file, 0, DEVICE_EXTRA_ROT_X)
+  const fanImpeller = useStlPart(fanImpellerPart.file, 0, DEVICE_EXTRA_ROT_X)
+  const [jackBodyPart, jackInsertPart] = DEVICE_TYPE_PARTS['keystone-jack']
+  const jackBody = useStlPart(jackBodyPart.file, 0, DEVICE_EXTRA_ROT_X)
+  const jackInsert = useStlPart(jackInsertPart.file, 0, DEVICE_EXTRA_ROT_X)
+  const [ms01BodyPart, ms01FrontPart] = DEVICE_TYPE_PARTS['minisforum-ms-01']
+  const ms01Body = useStlPart(ms01BodyPart.file)
+  const ms01Front = useStlPart(ms01FrontPart.file)
+  const [tinyBodyPart, tinyFrontPart] = DEVICE_TYPE_PARTS['lenovo-tiny']
+  const tinyBody = useStlPart(tinyBodyPart.file)
+  const tinyFront = useStlPart(tinyFrontPart.file)
+  const devicePartsByType: Record<DeviceType, PreparedGeometry[]> = {
+    'fan-noctua-40mm': [fanFrame, fanImpeller],
+    'keystone-jack': [jackBody, jackInsert],
+    'minisforum-ms-01': [ms01Body, ms01Front],
+    'lenovo-tiny': [tinyBody, tinyFront],
   }
 
   const totalHeight = rackU * U_MM
@@ -195,6 +228,7 @@ export function RackReal() {
                     key={i}
                     geometry={seg.geometry}
                     color={parts.sidePanels.color}
+                    material={parts.sidePanels.material}
                     position={[x, y, 0]}
                     rotation={[0, rotY, 0]}
                   />
@@ -334,6 +368,7 @@ export function RackReal() {
         <RealMesh
           geometry={topBottomPanel.geometry}
           color={parts.bottomPanel.color}
+          material={parts.bottomPanel.material}
           position={[0, BOTTOM_PANEL_INSET_MM, 0]}
         />
       )}
@@ -341,6 +376,7 @@ export function RackReal() {
         <RealMesh
           geometry={topBottomPanel.geometry}
           color={parts.topPanel.color}
+          material={parts.topPanel.material}
           position={[0, totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM - TOP_PANEL_INSET_MM, 0]}
           rotation={[PI, 0, 0]}
         />
@@ -399,18 +435,59 @@ export function RackReal() {
           the trays are already correctly oriented. Z is shifted forward
           (shelfZ) so it extends past the front width rail's front edge by
           SHELF_OVERSHOOT_MM. Y (shelfY) lands the shelf's top flush with the
-          top of its highest occupied row. */}
+          top of its highest occupied row.
+
+          Devices fitted into a shelf's slots (fans behind a fan plate — see
+          SHELF_DEVICE_SLOTS) are rendered as children of the same shelf, in
+          offsets measured off the shelf model itself, so they follow it
+          wherever it moves. Slot offsets are in the shelf's own local frame
+          (origin = footprint centre, y = 0 at the shelf's bottom face), and
+          the slot's `z` is a mounting *plane* — devices hang behind it — so
+          each device's own bottom-centre pivot is offset by half part 0's
+          size in Y and half its depth in Z. A device's later parts are aligned
+          back into the model's frame via their baked `offset`s (see
+          PreparedGeometry): they each get re-centred against their own
+          bounding box when loaded, so part 0 (which spans the whole envelope)
+          is the reference and everything else is shifted by the difference. */}
       {visibility.shelves &&
         shelves.map((shelf) => {
           const geo = shelfGeoByType[shelf.shelfType]
           const topRow = shelf.startU + shelf.u - 1
+          const shelfPosY = shelfY(geo, topRow)
+          const shelfPosZ = shelfZ(geo)
           return (
-            <RealMesh
-              key={`shelf-${shelf.id}`}
-              geometry={geo.geometry}
-              color={shelf.color}
-              position={[0, shelfY(geo, topRow), shelfZ(geo)]}
-            />
+            <Fragment key={`shelf-${shelf.id}`}>
+              <RealMesh
+                geometry={geo.geometry}
+                color={shelf.color}
+                position={[0, shelfPosY, shelfPosZ]}
+              />
+              {shelfDeviceSlots(shelf.shelfType).map((slot, index) => {
+                const device = shelf.devices?.[index]
+                if (!device) return null
+                const parts = devicePartsByType[device]
+                const ref = parts[0]
+                const baseX = slot.x
+                const baseY = shelfPosY + slot.y - ref.size.y / 2
+                const baseZ = shelfPosZ + slot.z - ref.size.z / 2
+                return (
+                  <Fragment key={`device-${shelf.id}-${index}`}>
+                    {parts.map((part, partIndex) => (
+                      <RealMesh
+                        key={partIndex}
+                        geometry={part.geometry}
+                        color={devicePartColor(shelf.deviceColors, device, partIndex)}
+                        position={[
+                          baseX + (ref.offset.x - part.offset.x),
+                          baseY + (ref.offset.y - part.offset.y),
+                          baseZ + (ref.offset.z - part.offset.z),
+                        ]}
+                      />
+                    ))}
+                  </Fragment>
+                )
+              })}
+            </Fragment>
           )
         })}
     </group>

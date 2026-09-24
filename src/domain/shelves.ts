@@ -1,5 +1,5 @@
-import { SHELF_TYPES, shelfTypeU } from './constants'
-import type { PartStyle, Shelf, ShelfType, ShelfU } from './types'
+import { SHELF_TYPES, shelfDeviceSlots, shelfTypeU } from './constants'
+import type { DeviceType, PartStyle, Shelf, ShelfType, ShelfU } from './types'
 import { DEFAULT_STYLES } from './defaults'
 
 /**
@@ -17,7 +17,12 @@ export function nextShelfId(existing: Shelf[]): string {
   return `s${max + 1}`
 }
 
-function makeShelf(shelfType: ShelfType, startU: number, existing: Shelf[], template?: PartStyle): Shelf {
+function makeShelf(
+  shelfType: ShelfType,
+  startU: number,
+  existing: Shelf[],
+  template?: Pick<PartStyle, 'color' | 'pattern' | 'solid'>,
+): Shelf {
   const style = template ?? DEFAULT_STYLES.shelves
   return {
     id: nextShelfId(existing),
@@ -27,6 +32,7 @@ function makeShelf(shelfType: ShelfType, startU: number, existing: Shelf[], temp
     solid: style.solid,
     color: style.color,
     pattern: style.pattern,
+    devices: normalizeShelfDevices(shelfType, undefined),
   }
 }
 
@@ -41,6 +47,27 @@ export function normalizeShelfType(shelf: Shelf): ShelfType {
   if (shelf.shelfType && VALID_SHELF_TYPES.has(shelf.shelfType)) return shelf.shelfType
   if (shelf.solid) return shelf.u >= 2 ? 'plate-2u' : 'plate-1u'
   return 'shelf-open-1u'
+}
+
+/**
+ * Reshape a shelf's fitted-device list to its shelf type's own slot count —
+ * always returns an array exactly `slots.length` long, `null` for empty slots.
+ * Backfills shelves saved before `devices` existed (undefined -> all empty),
+ * trims the list when the shelf type changed to one with fewer slots, and
+ * drops device ids the new type doesn't accept, so a stale persisted/shared
+ * shelf can never render more (or other) devices than the model has slots.
+ */
+export function normalizeShelfDevices(shelfType: ShelfType, devices: unknown): (DeviceType | null)[] {
+  const slots = shelfDeviceSlots(shelfType)
+  const out: (DeviceType | null)[] = new Array(slots.length).fill(null)
+  if (!Array.isArray(devices)) return out
+  for (let i = 0; i < slots.length; i++) {
+    const device = devices[i]
+    if (typeof device === 'string' && slots[i].accepts.includes(device as DeviceType)) {
+      out[i] = device as DeviceType
+    }
+  }
+  return out
 }
 
 export function sumU(shelves: Shelf[]): number {
@@ -116,6 +143,11 @@ export function maxDownGrowth(shelves: Shelf[], shelfId: string, topRow: number)
  * stuck with duplicate React keys forever). No auto-fill — gaps (including
  * "no shelves at all") are allowed; this only removes what genuinely
  * doesn't fit anymore.
+ *
+ * Also the one place a shelf's fitted-device list is normalized to its type's
+ * own slot count (see `normalizeShelfDevices`), which is what keeps persisted
+ * and shared builds that predate `devices` — or that carry a shelf type the
+ * build no longer uses — rendering instead of crashing.
  */
 export function clampShelvesToRack(shelves: Shelf[], rackU: number): Shelf[] {
   let maxId = 0
@@ -133,7 +165,7 @@ export function clampShelvesToRack(shelves: Shelf[], rackU: number): Shelf[] {
     if (shelf.startU + u > rackU) continue
     const id = seenIds.has(shelf.id) ? `s${++maxId}` : shelf.id
     seenIds.add(id)
-    result.push({ ...shelf, id, shelfType, u })
+    result.push({ ...shelf, id, shelfType, u, devices: normalizeShelfDevices(shelfType, shelf.devices) })
   }
   return result
 }

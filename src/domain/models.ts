@@ -2,7 +2,7 @@
 // stylized procedural geometry in domain/constants.ts. Kept separate so the
 // procedural fallback (components/viewer/Rack.tsx) is unaffected.
 
-import type { ShelfType } from './types'
+import type { DeviceType, ShelfType } from './types'
 
 export const MODEL_BASE = '/models-3d/'
 
@@ -59,7 +59,91 @@ export const SHELF_TYPE_FILES: Record<ShelfType, string> = {
   'shelf-plate-80mm-fan-2u': 'shelf-plate-80mm-fan-2u.stl',
   'shelf-plate-keystone-1u': 'shelf-plate-keystone-1u.stl',
   'shelf-sbc-7-2u': 'shelf-sbc-7-2u.stl',
+  'shelf-minisforum-ms-1u': 'shelf-minisforum-ms-1u.stl',
+  'shelf-tiny-rack-left-keystone': 'shelf-tiny-rack-left-keystone.stl',
 } as const
+
+/**
+ * One entry per *rendered* part of a device model, in load order. Devices are
+ * modelled Z-up with their own axis along Z, so their loaders pass an extra
+ * +90° X rotation (`DEVICE_EXTRA_ROT_X`) to stand that axis up into the rack's
+ * depth axis.
+ *
+ * A device can be more than one part, the way a real Noctua fan is two
+ * colours: a beige frame and a brown impeller. `color` is each part's default,
+ * taken from the real product; a shelf's own `deviceColors` overrides it per
+ * part. Part 0 must be the one whose model spans the device's *whole*
+ * envelope, because that's the size the slot offsets are measured against.
+ */
+export interface DevicePart {
+  /** Shown next to this part's colour swatch in the Devices editor. */
+  label: string
+  file: string
+  color: string
+}
+
+/**
+ * Noctua's signature colours, as published by Noctua themselves: the standard
+ * beige is Pantone PQ-2309C and the standard brown is Pantone PQ-483C.
+ */
+export const NOCTUA_BEIGE = '#e7ceb4'
+export const NOCTUA_BROWN = '#653025'
+
+/**
+ * The MS-01's stock finish: a black metal chassis with a slightly lighter
+ * grille-twill front panel, so the two printed parts read apart in the viewer.
+ */
+export const MS01_BODY = '#26282c'
+export const MS01_FRONT = '#3b3e44'
+
+/**
+ * The Lenovo Tiny's stock finish: a black chassis with a slightly lighter
+ * front bezel, so the two printed parts read apart in the viewer.
+ */
+export const LENOVO_BODY = '#1f2124'
+export const LENOVO_FRONT = '#33363b'
+
+/**
+ * The keystone plate's own colours: printed dark shell with cream jack bodies,
+ * so the unpopulated plate and the fitted jacks read apart in the viewer.
+ */
+export const KEYSTONE_JACK_BODY = '#ded5c4'
+export const KEYSTONE_JACK_INSERT = '#23252a'
+
+export const DEVICE_TYPE_PARTS: Record<DeviceType, DevicePart[]> = {
+  'fan-noctua-40mm': [
+    { label: 'Frame', file: 'fan-noctua-40mm-frame.stl', color: NOCTUA_BEIGE },
+    { label: 'Impeller', file: 'fan-noctua-40mm-impeller.stl', color: NOCTUA_BROWN },
+  ],
+  'keystone-jack': [
+    { label: 'Jack body', file: 'device-keystone-jack-body.stl', color: KEYSTONE_JACK_BODY },
+    { label: 'Socket insert', file: 'device-keystone-jack-insert.stl', color: KEYSTONE_JACK_INSERT },
+  ],
+  // Modelled Z-up with its front at -Y, so the app's standard Z-up->Y-up bake
+  // already stands it upright facing the rack's front — no extra rotation.
+  'minisforum-ms-01': [
+    { label: 'Chassis', file: 'minisforum-ms-01-body.stl', color: MS01_BODY },
+    { label: 'Front panel', file: 'minisforum-ms-01-front.stl', color: MS01_FRONT },
+  ],
+  'lenovo-tiny': [
+    { label: 'Chassis', file: 'lenovo-tiny-body.stl', color: LENOVO_BODY },
+    { label: 'Front bezel', file: 'lenovo-tiny-front.stl', color: LENOVO_FRONT },
+  ],
+}
+
+/** Resolved colour for one part of a fitted device: the shelf's own override
+ * if it has one, otherwise that part's real-world default. */
+export function devicePartColor(
+  deviceColors: string[] | undefined,
+  device: DeviceType,
+  index: number,
+): string {
+  return deviceColors?.[index] ?? DEVICE_TYPE_PARTS[device][index].color
+}
+
+/** Extra X rotation (on top of the Z-up->Y-up bake) that lays a device's own
+ * Z axis along the scene's depth axis, so fans/blowers face front-to-back. */
+export const DEVICE_EXTRA_ROT_X = Math.PI / 2
 
 // --- Measured constants (from inspecting the actual files) -------------------
 // Rail-height segments are exact U*44.45mm with no lip; side panels are

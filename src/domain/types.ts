@@ -20,11 +20,19 @@ export type OptionalPart =
   | 'topPanel'
   | 'bottomPanel'
 
+/**
+ * How a part is made, which drives how it renders. `printed` is the default
+ * opaque filament look; `acrylic` is a clear/tinted panel (transparent, low
+ * roughness) — e.g. laser-cut acrylic side panels instead of printed ones.
+ */
+export type PartMaterial = 'printed' | 'acrylic'
+
 export interface PartStyle {
   color: string
   pattern: PatternId
   /** When a pattern is set: true = solid backplate behind voids, false = open voids. */
   solid: boolean
+  material: PartMaterial
 }
 
 export type ShelfU = 1 | 2 | 3 | 4
@@ -39,6 +47,17 @@ export type ShelfType =
   | 'shelf-plate-80mm-fan-2u'
   | 'shelf-plate-keystone-1u'
   | 'shelf-sbc-7-2u'
+  | 'shelf-minisforum-ms-1u'
+  | 'shelf-tiny-rack-left-keystone'
+
+/**
+ * Devices that can be fitted *into* a shelf's own mounting slots (fans behind
+ * a fan plate, keystone jacks in a keystone plate, ...). Each shelf type
+ * declares how many slots it has and which devices each slot accepts — see
+ * `SHELF_DEVICE_SLOTS` in domain/constants.ts and the model files in
+ * domain/models.ts.
+ */
+export type DeviceType = 'fan-noctua-40mm' | 'keystone-jack' | 'minisforum-ms-01' | 'lenovo-tiny'
 
 export interface Shelf {
   id: string
@@ -54,8 +73,18 @@ export interface Shelf {
   solid: boolean
   color: string
   pattern: PatternId
+  /** Devices fitted into this shelf's own slots, in the shelf model's slot
+   * order — one entry per slot, `null` = empty. Always normalized to the
+   * shelf type's slot count by `clampShelvesToRack`, so persisted builds and
+   * share links that predate the field (or carry a stale shelf type) can't
+   * leave it a different length than the model renders. */
+  devices?: (DeviceType | null)[]
+  /** Per-part colour overrides for the devices fitted above, index-parallel to
+   * that device's own parts (see `DEVICE_TYPE_PARTS` in domain/models.ts) — any
+   * missing entry falls back to the part's real-world default, so the list
+   * needs no length normalization. */
+  deviceColors?: string[]
 }
-
 export type Toggles = Record<OptionalPart, boolean>
 
 /**

@@ -1,0 +1,17 @@
+node_modules
+dist
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
+*.iso
+*.exe
+*.apk
+*.step
+build.log
+.agents
+.claude
+skills-lock.json
+README.md
+LICENSE
+*.webp

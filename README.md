@@ -2,7 +2,8 @@
 
 A browser-based visualizer and parts-list planner for [Lab Rax](https://the-diy-life.com/introducing-lab-rax-a-3d-printable-modular-10-rack-system/),
 a 3D-printable modular 10" rack system. Users pick a rack height (4U–12U),
-color each part, lay out shelves, and see a real-time 3D model — built from
+color each part, lay out shelves, fit devices (fans etc.) into the shelves that
+take them, and see a real-time 3D model — built from
 the actual Lab Rax STL/3MF part files — update in the viewport. The build
 can be exported as a checkable parts list (CSV or XLSX) and shared via URL.
 
@@ -30,12 +31,13 @@ produces a static `dist/` folder deployable to any static host.
 ```
 src/
   domain/            Pure logic — no React, no Three.js. Start here to understand the model.
-    types.ts           Core types: PartType, PartStyle, Shelf, Toggles, BuildState
-    constants.ts       Size range (4U–12U), part labels/quantities, pattern registry
+    types.ts           Core types: PartType, PartStyle, Shelf, DeviceType, Toggles, BuildState
+    constants.ts       Size range (4U–12U), part labels/quantities, pattern registry,
+                       device registry + per-shelf-type slot positions
     models.ts          Real-part config: STL/3MF filenames, measured mm offsets used to lay parts out
     defaults.ts        Factory for a fresh default BuildState
-    shelves.ts         Shelf placement/gap-finding and resize-clamping logic
-    parts-list.ts      buildPartsList() — turns BuildState into export-ready rows
+    shelves.ts         Shelf placement/gap-finding, resize-clamping and device-slot normalization
+    parts-list.ts      buildPartsList() — turns BuildState into export-ready rows (parts + fitted devices)
 
   store/
     use-build-store.ts Zustand store: the single source of truth for the current build.
@@ -55,6 +57,7 @@ src/
       size-control.tsx   4U–12U slider
       part-control.tsx   Reusable row: color swatch + visibility toggle (+ on/off toggle for optional parts)
       shelf-editor.tsx   Ordered shelf list with per-shelf type/color + add/remove
+      device-editor.tsx  Devices fitted into shelves' own slots (e.g. the 5 fans a 40mm fan plate takes)
       colors-section.tsx Shared 6-swatch palette editor
 
   ui/                  Generic, store-agnostic input widgets (color-picker, palette-picker, visibility-toggle)
@@ -68,6 +71,11 @@ src/
 
   app.tsx              Top-level grid layout: header / sidebar / viewport
   main.tsx             Entry point — hydrates from a share URL (if present) before mounting React
+
+tools/                 Model-generation scripts (need Docker + CadQuery; not part of the app build)
+  make-fan-noctua-40mm.py  Regenerates the fan's frame + impeller STLs in public/models-3d/
+  make-minisforum-ms01.py  Regenerates the MS-01's chassis + front-panel STLs in public/models-3d/
+  make-lenovo-tiny.py      Regenerates the Lenovo Tiny's chassis + bezel STLs in public/models-3d/
 ```
 
 ### Data flow, in one paragraph
@@ -108,7 +116,54 @@ are both valid; nothing is forced to fill or stack contiguously.
   before it hits another shelf or the bottom of the rack; caps the shelf-type
   options offered in `ShelfEditor`.
 - `clampShelvesToRack()` — called after every resize or load; drops shelves
-  that no longer fit and backfills/repairs older persisted/shared shelf data.
+  that no longer fit, backfills/repairs older persisted/shared shelf data, and
+  normalizes each shelf's fitted-device list to its type's own slot count
+  (`normalizeShelfDevices()`).
+
+### Device slots (fans and other bolt-ins)
+
+Some shelves have mounting slots of their own, and the parts that go into them
+are tracked separately from the printed shelf:
+
+- `SHELF_DEVICE_SLOTS` (`src/domain/constants.ts`) is the whole feature's data:
+  per shelf type, the *slot centres* in millimetres (measured off the model
+  itself, in the same local frame the shelf mesh is positioned in) plus which
+  device types each slot accepts. The **Devices** section of the sidebar only
+  appears while a build contains a shelf type with slots. The Devices editor
+  covers the shelf's whole bank with one "Slot" row (pick a device and every
+  slot fills; "Empty" clears them all).
+- `DEVICE_TYPES` gives each device its label, and `DEVICE_TYPE_PARTS`
+  (`src/domain/models.ts`) maps it to its own model parts under
+  `public/models-3d/` — a file *plus a default colour each*, so a fan renders
+  in its real two-tone colours. Devices are loaded like shelves and instanced
+  per filled slot by `rack-real.tsx`; `DEVICE_EXTRA_ROT_X` turns a device's
+  own axis into the scene's depth axis (so fans face front-to-back), and
+  `PreparedGeometry.offset` is what keeps a device's separately-loaded parts
+  lined up with each other.
+- The one built-in shelf with slots is **40mm fan plate (1U)**: its model is a
+  252 × 42 × 6 mm front plate with five 38 × 42 mm openings on a 43.5 mm pitch,
+  so one "Slot" row takes five `fan-noctua-40mm` fans — beige frame
+  (Noctua PQ-2309C, `#e7ceb4`), brown impeller (Noctua PQ-483C, `#653025`).
+- The **Minisforum MS (1U)** rackmount shelf also has one slot, for the
+  `minisforum-ms-01` device. The machine's real external size is
+  196 × 189 × 48 mm, so against the 253.9 × 44.25 × 179 mm printed shell it is
+  slightly taller than the 1U opening and ~10 mm deeper — the slot front-aligns
+  it and pushes the overhang to the rear, matching the model author's note that
+  the machine is "a bit thicker than 1U".
+- **Tiny rack left keystone (1U)** takes one `lenovo-tiny` device (the Lenovo
+  ThinkCentre Tiny family — M720q/M920q/M910q/M710q share one chassis, and the
+  source STEP part is literally named "M720Q 1U v16"). At 182.9 × 179 × 34.5 mm
+  it sits inside the 254 × 44.45 × 190 mm tray with headroom on every axis, so
+  the slot just centres it, drops it on the tray floor, and front-aligns it.
+- **Keystone plate (1U)** carries ten `keystone-jack` devices — one per 15 mm
+  socket bay, centres at ±(11, 33, 55, 77, 99) mm on a 22 mm pitch. The jacks
+  slide in from the rear and register against the plate's back face, so the
+  dark socket insert faces out through each opening; picking the device in the
+  sidebar's Devices section fills all ten bays at once.
+- Fitted devices are stored on the shelf (`Shelf.devices`, one entry per slot,
+  `null` = empty) so they persist and share with the build, they're re-shaped
+  whenever the shelf type changes, and they're counted in the parts list
+  export (`buildPartsList`) since they're bought, not printed.
 
 ### Persistence and sharing
 
@@ -244,6 +299,9 @@ correctly from any subpath.
 | Change the size range                            | `src/domain/constants.ts` (`MIN_U`, `MAX_U`, `DEFAULT_U`) |
 | Add/remove a part type                           | `src/domain/types.ts` (`PartType`), `constants.ts` (`PART_TYPES`, `PART_LABELS`, `BASE_QUANTITIES`), `rack-real.tsx` (geometry/placement), `defaults.ts` (default style) |
 | Add a shelf type                                 | Add the STL/3MF to `public/models-3d/`, register it in `SHELF_TYPES` (`constants.ts`) and `SHELF_TYPE_FILES` (`models.ts`) |
+| Add a device type (fan, drive, ...)              | Add the STL/3MF to `public/models-3d/`, register it in `DEVICE_TYPES` (`constants.ts`) and `DEVICE_TYPE_PARTS` (`models.ts`, a file + default colour per rendered part); `tools/` has the generator for the 40mm fan |
+| Regenerate a 3D-printed model file               | `tools/make-fan-noctua-40mm.py`, `tools/make-minisforum-ms01.py` (Docker + CadQuery — export the device STLs); other parts were converted from the `.step` files in the repo root the same way |
+| Give a shelf its own device slots                | Add the slot centres + accepted devices to `SHELF_DEVICE_SLOTS` (`constants.ts`) — the sidebar's Devices section picks it up automatically |
 | Change what's in the parts-list export           | `src/domain/parts-list.ts`                                |
 | Change export file format/columns                | `src/export/export-csv.ts`, `src/export/export-xlsx.ts`    |
 | Adjust camera framing / lighting / ground grid    | `src/components/viewer/scene.tsx`                        |

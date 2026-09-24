@@ -1,4 +1,12 @@
-import type { BuildState, Palette, PartStyle, PartType, PartVisibility, Toggles } from './types'
+import type {
+  BuildState,
+  Palette,
+  PartMaterial,
+  PartStyle,
+  PartType,
+  PartVisibility,
+  Toggles,
+} from './types'
 import { DEFAULT_U, PART_TYPES } from './constants'
 import { defaultShelves } from './shelves'
 
@@ -15,9 +23,20 @@ const BASE_COLORS: Record<PartType, string> = {
   shelves: '#5a6270',
 }
 
+// Panels are commonly cut from acrylic sheet rather than printed, so the side
+// panels start out acrylic (clear-tinted). Anything not listed is printed.
+const BASE_MATERIALS: Partial<Record<PartType, PartMaterial>> = {
+  sidePanels: 'acrylic',
+}
+
 export const DEFAULT_STYLES: Record<PartType, PartStyle> = PART_TYPES.reduce(
   (acc, part) => {
-    acc[part] = { color: BASE_COLORS[part], pattern: 'none', solid: true }
+    acc[part] = {
+      color: BASE_COLORS[part],
+      pattern: 'none',
+      solid: true,
+      material: BASE_MATERIALS[part] ?? 'printed',
+    }
     return acc
   },
   {} as Record<PartType, PartStyle>,

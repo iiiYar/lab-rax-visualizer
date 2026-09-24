@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type {
   BuildState,
+  DeviceType,
   OptionalPart,
   PartStyle,
   PartType,
@@ -10,9 +11,15 @@ import type {
   ShelfType,
 } from '../domain/types'
 import { PALETTE_SIZE } from '../domain/types'
-import { MAX_U, MIN_U, shelfTypeU } from '../domain/constants'
+import { MAX_U, MIN_U, PART_TYPES, shelfDeviceSlots, shelfTypeU } from '../domain/constants'
 import { DEFAULT_PALETTE, makeAllVisible, makeDefaultBuild } from '../domain/defaults'
-import { clampShelvesToRack, findFirstGap, makeShelf, maxDownGrowth } from '../domain/shelves'
+import {
+  clampShelvesToRack,
+  findFirstGap,
+  makeShelf,
+  maxDownGrowth,
+  normalizeShelfDevices,
+} from '../domain/shelves'
 import { decodeBuild, readShareParam } from '../share/url-state'
 
 interface BuildActions {
@@ -22,6 +29,10 @@ interface BuildActions {
   toggle: (part: OptionalPart) => void
   setShelfType: (id: string, shelfType: ShelfType) => void
   setShelfStyle: (id: string, patch: Partial<Omit<Shelf, 'id' | 'u' | 'shelfType'>>) => void
+  /** Fit `device` into a shelf's *whole bank* of device slots at once (null =
+   * clear them all) — the Devices editor is one row per shelf, not one per
+   * slot. See SHELF_DEVICE_SLOTS in domain/constants.ts. */
+  fillShelfDevices: (id: string, device: DeviceType | null) => void
   addShelf: () => void
   removeShelf: (id: string) => void
   loadBuild: (state: BuildState) => void
@@ -37,6 +48,25 @@ interface BuildActions {
 export type BuildStore = BuildState & BuildActions
 
 const clampU = (u: number) => Math.max(MIN_U, Math.min(MAX_U, Math.round(u)))
+
+/**
+ * Merge persisted part styles per part *and* per field, so a build saved before
+ * a PartStyle field existed (e.g. `material`) gains the current default for
+ * that field instead of coming back with it undefined.
+ */
+function mergeParts(
+  base: Record<PartType, PartStyle>,
+  incoming: unknown,
+): Record<PartType, PartStyle> {
+  const out = { ...base }
+  if (incoming && typeof incoming === 'object') {
+    for (const part of PART_TYPES) {
+      const inc = (incoming as Record<string, Partial<PartStyle>>)[part]
+      if (inc && typeof inc === 'object') out[part] = { ...base[part], ...inc }
+    }
+  }
+  return out
+}
 
 export const useBuildStore = create<BuildStore>()(
   persist(
@@ -100,14 +130,35 @@ export const useBuildStore = create<BuildStore>()(
           // rest have a center hole) but stays independently overridable
           // afterward via setShelfStyle.
           const solid = shelfType === 'plate-1u' || shelfType === 'plate-2u'
+          // Re-shape any fitted devices to the new type's own slots: devices
+          // stay put where the new shelf still accepts them, and everything
+          // else is dropped (a 1U plate has nowhere to put a fan).
+          const devices = normalizeShelfDevices(shelfType, shelf.devices)
           return {
-            shelves: s.shelves.map((sh) => (sh.id === id ? { ...sh, shelfType, u, startU, solid } : sh)),
+            shelves: s.shelves.map((sh) =>
+              sh.id === id ? { ...sh, shelfType, u, startU, solid, devices } : sh,
+            ),
           }
         }),
 
       setShelfStyle: (id, patch) =>
         set((s) => ({
           shelves: s.shelves.map((sh) => (sh.id === id ? { ...sh, ...patch } : sh)),
+        })),
+
+      fillShelfDevices: (id, device) =>
+        set((s) => ({
+          shelves: s.shelves.map((sh) => {
+            if (sh.id !== id) return sh
+            const slots = shelfDeviceSlots(sh.shelfType)
+            const devices = normalizeShelfDevices(sh.shelfType, sh.devices)
+            return {
+              ...sh,
+              devices: devices.map((_, i) =>
+                device !== null && slots[i].accepts.includes(device) ? device : null,
+              ),
+            }
+          }),
         })),
 
       addShelf: () =>
@@ -173,7 +224,7 @@ export const useBuildStore = create<BuildStore>()(
         return {
           ...current,
           ...p,
-          parts: { ...current.parts, ...p.parts },
+          parts: mergeParts(current.parts, p.parts),
           toggles: { ...current.toggles, ...p.toggles },
           // Also backfills `shelfType` on shelves saved before that field
           // existed, and drops any that no longer fit a fixed-size part.

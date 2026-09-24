@@ -46,6 +46,8 @@ export function ShelfEditor() {
           const topRowNum = rackU - topRow
           const bottomRowNum = rackU - shelf.startU
           const rowLabel = shelf.u === 1 ? `Row ${topRowNum}` : `Rows ${topRowNum}-${bottomRowNum}`
+          // Devices for this shelf (fans etc.) are edited in the Devices
+          // section below — see DeviceEditor and SHELF_DEVICE_SLOTS.
           return (
             <div key={shelf.id} className="flex items-center gap-2 rounded bg-black/30 p-2">
               <span className="w-14 text-[10px] text-white/40">{rowLabel}</span>

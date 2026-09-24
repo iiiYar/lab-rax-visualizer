@@ -9,6 +9,17 @@ export interface PreparedGeometry {
   geometry: THREE.BufferGeometry
   /** post-bake size in mm (x, y, z) */
   size: THREE.Vector3
+  /**
+   * The translation baked in when re-centring the part to bottom-centre (mm).
+   *
+   * Every part of a multi-part device (e.g. a fan's beige frame and its brown
+   * impeller) is re-centred against its *own* bounding box, which would pull
+   * the parts apart if they were placed identically. Rendering part *i* at
+   * `base - offsets[i] + offsets[0]` (part 0 being the reference — the one
+   * that spans the whole envelope) puts them all back into the model's own
+   * frame; see the device render in rack-real.tsx.
+   */
+  offset: THREE.Vector3
 }
 
 /**
@@ -32,12 +43,13 @@ function prepareGeometry(
   const bb = geo.boundingBox!
   const center = new THREE.Vector3()
   bb.getCenter(center)
-  geo.translate(-center.x, -bb.min.y, -center.z)
+  const offset = new THREE.Vector3(-center.x, -bb.min.y, -center.z)
+  geo.translate(offset.x, offset.y, offset.z)
   geo.computeBoundingBox()
   geo.computeVertexNormals()
   const size = new THREE.Vector3()
   geo.boundingBox!.getSize(size)
-  return { geometry: geo, size }
+  return { geometry: geo, size, offset }
 }
 
 function firstMeshGeometry(root: THREE.Object3D): THREE.BufferGeometry {

@@ -50,6 +50,10 @@ export function decodeBuild(param: string): BuildState | null {
             color: typeof incoming.color === 'string' ? incoming.color : parts[part].color,
             pattern: (incoming.pattern as PartStyle['pattern']) ?? parts[part].pattern,
             solid: typeof incoming.solid === 'boolean' ? incoming.solid : parts[part].solid,
+            material:
+              incoming.material === 'acrylic' || incoming.material === 'printed'
+                ? incoming.material
+                : parts[part].material,
           }
         }
       }

@@ -1,10 +1,12 @@
-import type { BuildState, PartType, PatternId } from './types'
+import type { BuildState, DeviceType, PartType, PatternId } from './types'
 import {
   BASE_QUANTITIES,
   PART_LABELS,
+  deviceLabel,
   isOptional,
   patternLabel,
 } from './constants'
+import { DEVICE_TYPE_PARTS, devicePartColor } from './models'
 
 export interface PartRow {
   part: string
@@ -72,6 +74,36 @@ export function buildPartsList(state: BuildState): PartRow[] {
       pattern: g.pattern === 'none' ? '—' : patternLabel(g.pattern),
       // For shelves the "solid" column describes the shelf face itself.
       solid: g.solid ? 'Solid' : 'Holed',
+      quantity: g.count,
+    })
+  }
+
+  // Devices fitted into shelves' own slots (e.g. fans behind a fan plate),
+  // grouped by type + colours — this is what the build actually has to buy
+  // alongside the printed shelves. The row's colour cell shows the device's
+  // first (most visible) part, with its per-shelf overrides resolved.
+  const deviceGroups = new Map<string, { type: DeviceType; color: string; count: number }>()
+  for (const s of shelves) {
+    for (const device of s.devices ?? []) {
+      if (!device) continue
+      const color = devicePartColor(s.deviceColors, device, 0)
+      // Group shelves only when *every* part colour matches — a fan whose
+      // impeller was recoloured is a different row than a stock one.
+      const allColors = DEVICE_TYPE_PARTS[device]
+        .map((_, i) => devicePartColor(s.deviceColors, device, i))
+        .join(',')
+      const key = `${device}|${allColors}`
+      const g = deviceGroups.get(key)
+      if (g) g.count += 1
+      else deviceGroups.set(key, { type: device, color, count: 1 })
+    }
+  }
+  for (const g of deviceGroups.values()) {
+    rows.push({
+      part: deviceLabel(g.type),
+      color: g.color,
+      pattern: '—',
+      solid: '—',
       quantity: g.count,
     })
   }

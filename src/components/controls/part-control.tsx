@@ -1,5 +1,5 @@
-import { PART_LABELS, isOptional } from '../../domain/constants'
-import type { OptionalPart, PartType } from '../../domain/types'
+import { PART_LABELS, PART_MATERIALS, hasMaterialChoice, isOptional } from '../../domain/constants'
+import type { OptionalPart, PartMaterial, PartType } from '../../domain/types'
 import { useBuildStore } from '../../store/use-build-store'
 import { PalettePicker } from '../../ui/palette-picker'
 import { VisibilityToggle } from '../../ui/visibility-toggle'
@@ -44,6 +44,26 @@ export function PartControl({ part }: { part: PartType }) {
           />
         </div>
       </div>
+
+      {hasMaterialChoice(part) && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-[10px] text-white/40">Material</span>
+          <select
+            value={style.material}
+            onChange={(e) => setPartStyle(part, { material: e.target.value as PartMaterial })}
+            className="h-7 rounded bg-black/40 px-1 text-xs text-white outline-none ring-1 ring-white/10 pointer-coarse:h-11"
+          >
+            {PART_MATERIALS.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          {style.material === 'acrylic' && (
+            <span className="text-[10px] text-white/30">clear, tinted by color</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

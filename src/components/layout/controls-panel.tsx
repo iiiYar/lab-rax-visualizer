@@ -1,9 +1,10 @@
-import { PART_TYPES } from '../../domain/constants'
+import { PART_TYPES, shelfHasDeviceSlots } from '../../domain/constants'
 import { useBuildStore } from '../../store/use-build-store'
 import { SizeControl } from '../controls/size-control'
 import { ColorsSection } from '../controls/colors-section'
 import { PartControl } from '../controls/part-control'
 import { ShelfEditor } from '../controls/shelf-editor'
+import { DeviceEditor } from '../controls/device-editor'
 import { VisibilityToggle } from '../../ui/visibility-toggle'
 import { CollapsibleSection } from '../../ui/collapsible-section'
 
@@ -17,6 +18,10 @@ export function ControlsPanel({ footer }: { footer?: React.ReactNode }) {
   const partTypes = PART_TYPES.filter((p) => p !== 'shelves')
   const shelvesVisible = useBuildStore((s) => s.visibility.shelves)
   const toggleVisibility = useBuildStore((s) => s.toggleVisibility)
+  // Devices only make sense while a shelf type with its own mounting slots is
+  // in the build (e.g. a 40mm fan plate), so the whole section stays hidden
+  // otherwise — see SHELF_DEVICE_SLOTS in domain/constants.ts.
+  const hasDeviceSlots = useBuildStore((s) => s.shelves.some((sh) => shelfHasDeviceSlots(sh.shelfType)))
 
   return (
     <div className="space-y-3">
@@ -42,6 +47,12 @@ export function ControlsPanel({ footer }: { footer?: React.ReactNode }) {
       >
         <ShelfEditor />
       </CollapsibleSection>
+
+      {hasDeviceSlots && (
+        <CollapsibleSection title="Devices" collapsible>
+          <DeviceEditor />
+        </CollapsibleSection>
+      )}
 
       {footer}
     </div>
