@@ -70,3 +70,14 @@ node_modules/
 .env
 
 data/
+
+# Local scratch material: installers, images, vendor downloads, screenshots.
+# These stay on disk but never enter the repository.
+*.iso
+*.apk
+*.exe
+*.zip
+/img/
+/tmpcheck/
+/tools/ksgen.txt
+/my-little-lab-rax-*.webp
