@@ -181,6 +181,16 @@ are tracked separately from the printed shelf:
 - `decodeBuild()` is defensive: it validates shape field-by-field and falls
   back to defaults for anything missing or malformed, so a hand-edited or
   truncated share link can't crash the app.
+- Saved racks live in `src/domain/saved-builds.ts` (`localStorage` key
+  `lab-rax-saved-builds`). Every saved entry also has a **Copy link** button
+  that produces a normal `?b=` share URL, which is the no-backend way to move
+  one rack to another device.
+- When the app is served by `server/index.mjs` (the Docker image), the same
+  module syncs that list to `GET/PUT /api/builds`. The server keeps it in
+  `saved-builds.json` inside the `/data` volume, so saves are shared by every
+  device that opens this instance and survive container rebuilds. If the API
+  is absent (static hosting) or offline, the module silently stays local-only;
+  the sidebar shows whether it is in "server" or "local" mode.
 
 ### Known simplifications / stretch work not yet built
 
@@ -212,19 +222,26 @@ Prerequisites: Node.js 18+ (project was built/verified with Node 25 and npm
 ```bash
 # from the project root
 npm install       # install dependencies
-npm run dev       # start the Vite dev server (default: http://localhost:5173)
+npm run server    # JSON persistence API on http://localhost:8787 (optional)
+npm run dev       # Vite dev server on http://localhost:5173 (proxies /api)
 ```
+
+`npm run server` is optional: without it the app runs local-only (saved racks
+stay in the browser). With it running, the dev server proxies `/api` to the
+JSON file store so you can test cross-device sync locally.
 
 Other scripts:
 
 ```bash
 npm run typecheck # tsc --noEmit — type-check without emitting files
 npm run build     # tsc -b && vite build — production build into dist/
+npm run start     # serve dist/ + the /api on PORT (default 8787)
 npm run preview   # serve the dist/ build locally, for a pre-deploy sanity check
 ```
 
-There is no `.env` / environment configuration required — the app has no
-backend calls of any kind.
+There is no `.env` / environment configuration required. `server/index.mjs`
+reads two optional variables: `PORT` (default `8787`) and `DATA_DIR` (default
+`./data`).
 
 ## Deploying to a web server
 
@@ -256,6 +273,31 @@ A few things to know before deploying:
   max-age) so users pick up new deploys.
 - **Serve `models-3d/*.stl`/`*.3mf` as static assets** (they're plain files
   copied from `public/`, not bundled) — any static host does this by default.
+
+### Docker (with persistent saved racks)
+
+The included `Dockerfile` builds the SPA and runs `server/index.mjs`, which
+serves `dist/` and the `/api/builds` JSON store on one port. `docker-compose.yml`
+mounts the `rax-data` named volume at `/data`:
+
+```bash
+docker compose up -d --build
+# open http://<host-ip>:5173 from any device on the same network
+```
+
+- Saved racks are written to `/data/saved-builds.json` inside the volume, so
+  they survive `docker compose down`, image rebuilds and host reboots.
+- Inspect or back up the file:
+
+  ```bash
+  docker compose exec app cat /data/saved-builds.json
+  docker compose cp app:/data/saved-builds.json ./saved-builds.backup.json
+  ```
+
+- Reset every save: `docker compose down -v` (deletes the named volume), or
+  remove the JSON file from the volume.
+- The API is unauthenticated, which is fine on a trusted LAN. If you publish
+  the port to the internet, put it behind a reverse proxy with authentication.
 
 ### Example: Nginx
 

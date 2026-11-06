@@ -11,5 +11,12 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: { usePolling: true },
+    // `npm run server` exposes the JSON API on 8787 during development.
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
+    },
   },
 })

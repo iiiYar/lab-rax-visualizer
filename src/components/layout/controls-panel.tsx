@@ -4,6 +4,7 @@ import { SizeControl } from '../controls/size-control'
 import { ColorsSection } from '../controls/colors-section'
 import { PartControl } from '../controls/part-control'
 import { ShelfEditor } from '../controls/shelf-editor'
+import { SavedBuilds } from '../controls/saved-builds'
 import { DeviceEditor } from '../controls/device-editor'
 import { VisibilityToggle } from '../../ui/visibility-toggle'
 import { CollapsibleSection } from '../../ui/collapsible-section'
@@ -25,6 +26,10 @@ export function ControlsPanel({ footer }: { footer?: React.ReactNode }) {
 
   return (
     <div className="space-y-3">
+      <CollapsibleSection title="Saved racks">
+        <SavedBuilds />
+      </CollapsibleSection>
+
       <CollapsibleSection title="Size">
         <SizeControl />
       </CollapsibleSection>
