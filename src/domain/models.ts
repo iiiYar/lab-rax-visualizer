@@ -49,6 +49,15 @@ export const MODEL_FILES = {
  * One real part per selectable `ShelfType` (see domain/types.ts). Most are
  * .stl; `shelf-plate-40mm-fan-1u` is a .3mf, so it's loaded via
  * `use3mfPart` rather than `useStlPart` in RackReal.
+ *
+ * `shelf-hdd-8bay-3u` is a merged viz mesh: the MakerWorld 8-bay enclosure
+ * ships as 8 separate STLs (top/bottom bays, back, 8 caddy bodies, rear
+ * handles, backplane mount) in print orientation, assembled into the app
+ * frame (X width / Y depth / Z height) and Z-squashed from the real 147.5mm
+ * to exactly 3U by tools/make-hdd-8bay-3u.py — see the file header there.
+ * The 8 caddy HANDLES ship separately as the `hdd-caddy-handle` device so
+ * they carry their own colour; "HDD Bay Rails" (a vented slab matching no
+ * enclosure face or photo) is deliberately omitted.
  */
 export const SHELF_TYPE_FILES: Record<ShelfType, string> = {
   'plate-1u': 'plate-1u.stl',
@@ -61,6 +70,10 @@ export const SHELF_TYPE_FILES: Record<ShelfType, string> = {
   'shelf-sbc-7-2u': 'shelf-sbc-7-2u.stl',
   'shelf-minisforum-ms-1u': 'shelf-minisforum-ms-1u.stl',
   'shelf-tiny-rack-left-keystone': 'shelf-tiny-rack-left-keystone.stl',
+  'shelf-hdd-8bay-3u': 'shelf-hdd-8bay-3u.stl',
+  'shelf-minitx-2u': 'shelf-minitx-2u.stl',
+  'shelf-minitx-gpu-3u': 'shelf-minitx-gpu-3u.stl',
+  'shelf-mx64-1u': 'shelf-mx64-1u.stl',
 } as const
 
 /**
@@ -110,6 +123,28 @@ export const LENOVO_FRONT = '#33363b'
 export const KEYSTONE_JACK_BODY = '#ded5c4'
 export const KEYSTONE_JACK_INSERT = '#23252a'
 
+/** Chocolate brown of the 8-bay enclosure's printed caddy handles. */
+export const HDD_CADDY_HANDLE = '#5a3626'
+
+/** Mini-ITX motherboard PCB green. */
+export const MINITX_MOTHERBOARD = '#2d8a4e'
+/** Power button (black). */
+export const MINITX_POWER_BUTTON = '#1a1a1a'
+/** PCIe card green. */
+export const MINITX_PCIE_CARD = '#4a7c59'
+
+/**
+ * Cisco Meraki MX64: official catalog size 239 x 132 x 25mm (W x D x H),
+ * 0.7kg, 30W DC, Desktop/Wall mount — see the measured slot comment in
+ * domain/constants.ts.
+ *
+ * The model is the user-supplied detailed mesh (Cisco Meraki MX64 with
+ * 5x GbE RJ45 + USB, 10 link LEDs, top vent grille, Meraki logo and rubber
+ * feet). It ships Y-up, so tools/make-mx64-parts.py pre-rotates it into the
+ * repo's CAD Z-up convention. Charcoal, like the real single-material shell.
+ */
+export const MX64_COLOR = '#2a2a2a'
+
 export const DEVICE_TYPE_PARTS: Record<DeviceType, DevicePart[]> = {
   'fan-noctua-40mm': [
     { label: 'Frame', file: 'fan-noctua-40mm-frame.stl', color: NOCTUA_BEIGE },
@@ -129,6 +164,27 @@ export const DEVICE_TYPE_PARTS: Record<DeviceType, DevicePart[]> = {
     { label: 'Chassis', file: 'lenovo-tiny-body.stl', color: LENOVO_BODY },
     { label: 'Front bezel', file: 'lenovo-tiny-front.stl', color: LENOVO_FRONT },
   ],
+  // One bay's handle of the 8-bay HDD enclosure, modelled X-centred and
+  // Z bottom-anchored in the shelf's own assembly frame (see SHELF_DEVICE_SLOTS
+  // for the slot math). Plain bake like the MS-01 — it already stands upright.
+  'hdd-caddy-handle': [
+    { label: 'Handle', file: 'device-hdd-caddy-handle.stl', color: HDD_CADDY_HANDLE },
+  ],
+  // Mini-ITX motherboard: flat green PCB (170x170mm) with CPU socket and RAM slots.
+  'minitx-motherboard': [
+    { label: 'Motherboard', file: 'device-minitx-motherboard.stl', color: MINITX_MOTHERBOARD },
+  ],
+  // Power/reset button (12mm).
+  'minitx-power-button': [
+    { label: 'Power button', file: 'device-minitx-power-button.stl', color: MINITX_POWER_BUTTON },
+  ],
+  // PCIe expansion card.
+  'minitx-pcie-card': [
+    { label: 'PCIe card', file: 'device-minitx-pcie-card.stl', color: MINITX_PCIE_CARD },
+  ],
+  // Cisco Meraki MX64, modelled in the same CAD frame as its 1U tray
+  // (X width / Y depth / Z height) so the plain bake keeps it upright.
+  'mx64': [{ label: 'MX64', file: 'device-mx64.stl', color: MX64_COLOR }],
 }
 
 /** Resolved colour for one part of a fitted device: the shelf's own override

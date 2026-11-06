@@ -1,4 +1,4 @@
-import { SHELF_TYPES, shelfDeviceSlots, shelfTypeU } from './constants'
+import { SHELF_DEFAULT_DEVICES, SHELF_TYPES, shelfDeviceSlots, shelfTypeU } from './constants'
 import type { DeviceType, PartStyle, Shelf, ShelfType, ShelfU } from './types'
 import { DEFAULT_STYLES } from './defaults'
 
@@ -52,15 +52,34 @@ export function normalizeShelfType(shelf: Shelf): ShelfType {
 /**
  * Reshape a shelf's fitted-device list to its shelf type's own slot count —
  * always returns an array exactly `slots.length` long, `null` for empty slots.
- * Backfills shelves saved before `devices` existed (undefined -> all empty),
- * trims the list when the shelf type changed to one with fewer slots, and
- * drops device ids the new type doesn't accept, so a stale persisted/shared
- * shelf can never render more (or other) devices than the model has slots.
+ * Backfills shelves saved before `devices` existed (undefined -> the type's
+ * `SHELF_DEFAULT_DEVICES` where one is declared, else all empty), trims the
+ * list when the shelf type changed to one with fewer slots, and drops device
+ * ids the new type doesn't accept, so a stale persisted/shared shelf can never
+ * render more (or other) devices than the model has slots.
  */
 export function normalizeShelfDevices(shelfType: ShelfType, devices: unknown): (DeviceType | null)[] {
   const slots = shelfDeviceSlots(shelfType)
   const out: (DeviceType | null)[] = new Array(slots.length).fill(null)
-  if (!Array.isArray(devices)) return out
+  // A zero-length list is a legacy artifact (this type had no slots when the
+  // build was saved), not a user choice — no current path produces one for a
+  // slotted type — so it heals to defaults exactly like a missing list.
+  if (!Array.isArray(devices) || devices.length === 0) {
+    // Mini-ITX 2U: three distinct components, one per slot.
+    if (shelfType === 'shelf-minitx-2u') {
+      out[0] = 'minitx-motherboard'
+      out[1] = 'minitx-power-button'
+      out[2] = 'minitx-pcie-card'
+      return out
+    }
+    const def = SHELF_DEFAULT_DEVICES[shelfType]
+    if (def) {
+      for (let i = 0; i < slots.length; i++) {
+        if (slots[i].accepts.includes(def)) out[i] = def
+      }
+    }
+    return out
+  }
   for (let i = 0; i < slots.length; i++) {
     const device = devices[i]
     if (typeof device === 'string' && slots[i].accepts.includes(device as DeviceType)) {

@@ -49,6 +49,10 @@ export type ShelfType =
   | 'shelf-sbc-7-2u'
   | 'shelf-minisforum-ms-1u'
   | 'shelf-tiny-rack-left-keystone'
+  | 'shelf-hdd-8bay-3u'
+  | 'shelf-minitx-2u'
+  | 'shelf-minitx-gpu-3u'
+  | 'shelf-mx64-1u'
 
 /**
  * Devices that can be fitted *into* a shelf's own mounting slots (fans behind
@@ -57,7 +61,7 @@ export type ShelfType =
  * `SHELF_DEVICE_SLOTS` in domain/constants.ts and the model files in
  * domain/models.ts.
  */
-export type DeviceType = 'fan-noctua-40mm' | 'keystone-jack' | 'minisforum-ms-01' | 'lenovo-tiny'
+export type DeviceType = 'fan-noctua-40mm' | 'keystone-jack' | 'minisforum-ms-01' | 'lenovo-tiny' | 'hdd-caddy-handle' | 'minitx-motherboard' | 'minitx-power-button' | 'minitx-pcie-card' | 'mx64'
 
 export interface Shelf {
   id: string

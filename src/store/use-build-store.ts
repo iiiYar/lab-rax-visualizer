@@ -129,11 +129,20 @@ export const useBuildStore = create<BuildStore>()(
           // `solid` defaults from the chosen type (plates are solid, the
           // rest have a center hole) but stays independently overridable
           // afterward via setShelfStyle.
-          const solid = shelfType === 'plate-1u' || shelfType === 'plate-2u'
+          const solid =
+            shelfType === 'plate-1u' ||
+            shelfType === 'plate-2u' ||
+            shelfType === 'shelf-minitx-2u' ||
+            shelfType === 'shelf-minitx-gpu-3u'
           // Re-shape any fitted devices to the new type's own slots: devices
           // stay put where the new shelf still accepts them, and everything
-          // else is dropped (a 1U plate has nowhere to put a fan).
-          const devices = normalizeShelfDevices(shelfType, shelf.devices)
+          // else is dropped (a 1U plate has nowhere to put a fan). An empty
+          // (or missing) list picks up the new type's defaults, if any, so
+          // switching to the 8-bay enclosure arrives with its handles fitted.
+          const devices = normalizeShelfDevices(
+            shelfType,
+            shelf.devices?.length ? shelf.devices : undefined,
+          )
           return {
             shelves: s.shelves.map((sh) =>
               sh.id === id ? { ...sh, shelfType, u, startU, solid, devices } : sh,

@@ -64,6 +64,10 @@ export function RackReal() {
   const shelfSbc72u = useStlPart(SHELF_TYPE_FILES['shelf-sbc-7-2u'])
   const shelfMinisforumMs1u = useStlPart(SHELF_TYPE_FILES['shelf-minisforum-ms-1u'])
   const shelfTinyRackLeftKeystone = useStlPart(SHELF_TYPE_FILES['shelf-tiny-rack-left-keystone'])
+  const shelfHdd8bay3u = useStlPart(SHELF_TYPE_FILES['shelf-hdd-8bay-3u'])
+  const shelfMinItx2u = useStlPart(SHELF_TYPE_FILES['shelf-minitx-2u'])
+  const shelfMinItxGpu3u = useStlPart(SHELF_TYPE_FILES['shelf-minitx-gpu-3u'])
+  const shelfMx64_1u = useStlPart(SHELF_TYPE_FILES['shelf-mx64-1u'])
   const shelfGeoByType: Record<ShelfType, PreparedGeometry> = {
     'plate-1u': plate1u,
     'plate-2u': plate2u,
@@ -75,6 +79,10 @@ export function RackReal() {
     'shelf-sbc-7-2u': shelfSbc72u,
     'shelf-minisforum-ms-1u': shelfMinisforumMs1u,
     'shelf-tiny-rack-left-keystone': shelfTinyRackLeftKeystone,
+    'shelf-hdd-8bay-3u': shelfHdd8bay3u,
+    'shelf-minitx-2u': shelfMinItx2u,
+    'shelf-minitx-gpu-3u': shelfMinItxGpu3u,
+    'shelf-mx64-1u': shelfMx64_1u,
   }
 
   // Devices: one entry per rendered part of a device model (a Noctua fan is a
@@ -96,11 +104,26 @@ export function RackReal() {
   const [tinyBodyPart, tinyFrontPart] = DEVICE_TYPE_PARTS['lenovo-tiny']
   const tinyBody = useStlPart(tinyBodyPart.file)
   const tinyFront = useStlPart(tinyFrontPart.file)
+  const [hddHandlePart] = DEVICE_TYPE_PARTS['hdd-caddy-handle']
+  const hddHandle = useStlPart(hddHandlePart.file)
+  const [mbPart] = DEVICE_TYPE_PARTS['minitx-motherboard']
+  const mbGeo = useStlPart(mbPart.file)
+  const [btnPart] = DEVICE_TYPE_PARTS['minitx-power-button']
+  const btnGeo = useStlPart(btnPart.file)
+  const [pciePart] = DEVICE_TYPE_PARTS['minitx-pcie-card']
+  const pcieGeo = useStlPart(pciePart.file)
+  const [mx64Part] = DEVICE_TYPE_PARTS['mx64']
+  const mx64Geo = useStlPart(mx64Part.file)
   const devicePartsByType: Record<DeviceType, PreparedGeometry[]> = {
     'fan-noctua-40mm': [fanFrame, fanImpeller],
     'keystone-jack': [jackBody, jackInsert],
     'minisforum-ms-01': [ms01Body, ms01Front],
     'lenovo-tiny': [tinyBody, tinyFront],
+    'hdd-caddy-handle': [hddHandle],
+    'minitx-motherboard': [mbGeo],
+    'minitx-power-button': [btnGeo],
+    'minitx-pcie-card': [pcieGeo],
+    'mx64': [mx64Geo],
   }
 
   const totalHeight = rackU * U_MM

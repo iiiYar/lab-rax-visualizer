@@ -117,6 +117,10 @@ export const SHELF_TYPES: ShelfTypeDef[] = [
   { id: 'shelf-sbc-7-2u', label: 'SBC holder ×7 (2U)', u: 2 },
   { id: 'shelf-minisforum-ms-1u', label: 'Minisforum MS (1U)', u: 1 },
   { id: 'shelf-tiny-rack-left-keystone', label: 'Tiny rack left keystone (1U)', u: 1 },
+  { id: 'shelf-hdd-8bay-3u', label: 'HDD enclosure 8-bay (3U)', u: 3 },
+  { id: 'shelf-minitx-2u', label: 'Mini-ITX + ATX PSU (2U)', u: 2 },
+  { id: 'shelf-minitx-gpu-3u', label: 'Mini-ITX GPU fan (3U)', u: 3 },
+  { id: 'shelf-mx64-1u', label: 'Cisco Meraki MX64 (1U)', u: 1 },
 ]
 
 export function shelfTypeU(id: ShelfType): ShelfU {
@@ -142,6 +146,11 @@ export const DEVICE_TYPES: DeviceTypeDef[] = [
   { id: 'keystone-jack', label: 'Keystone jack' },
   { id: 'minisforum-ms-01', label: 'Minisforum MS-01' },
   { id: 'lenovo-tiny', label: 'Lenovo ThinkCentre Tiny' },
+  { id: 'hdd-caddy-handle', label: 'HDD caddy handle' },
+  { id: 'minitx-motherboard', label: 'Mini-ITX motherboard' },
+  { id: 'minitx-power-button', label: 'Power button (12mm)' },
+  { id: 'minitx-pcie-card', label: 'PCIe card' },
+  { id: 'mx64', label: 'Cisco Meraki MX64' },
 ]
 
 export function deviceLabel(id: DeviceType): string {
@@ -223,6 +232,54 @@ export const SHELF_DEVICE_SLOTS: Partial<Record<ShelfType, ShelfDeviceSlots>> = 
   'shelf-tiny-rack-left-keystone': {
     slots: [{ x: 0, y: 21.98, z: 91, accepts: ['lenovo-tiny' as DeviceType] }],
   },
+  // "Mini-ITX + ATX PSU (2U)": Mini-ITX mainboard on standoffs, power/reset
+  // buttons on the front panel, and a PCIe expansion card in the rear slot.
+  // Three distinct slots, each accepting one device type. Pre-filled via
+  // SHELF_DEFAULT_DEVICES so a fresh shelf shows all three components.
+  'shelf-minitx-2u': {
+    slots: [
+      // Motherboard: flat on standoffs, ~8mm above the bottom.
+      { x: 0, y: 8, z: 0, accepts: ['minitx-motherboard' as DeviceType] },
+      // Power/reset button on the front panel (12mm hole).
+      { x: -60, y: 75, z: -88, accepts: ['minitx-power-button' as DeviceType] },
+      // PCIe expansion card in the rear slot.
+      { x: 0, y: 60, z: 80, accepts: ['minitx-pcie-card' as DeviceType] },
+    ],
+  },
+  // "Cisco Meraki MX64 (1U)": official catalog — 239 x 132 x 25mm (W x D x H),
+  // 0.7kg, 30W DC, Desktop/Wall mount. The tray is the user-supplied printed
+  // 1U design: a full faceplate (254.8 x 44.45, with rack holes + window),
+  // ventilated floor, stepped side walls with cable slots, rear pass-throughs
+  // and a 20mm-deep U throat behind the window. Its faceplate is 45.25mm tall
+  // in the source file, so tools/make-mx64-parts.py squashes it to exactly
+  // 44.45mm (1U).
+  //
+  // `slot.z` is a mounting *plane*: the renderer offsets the device's
+  // bottom-centre pivot by half part 0's depth, so z is the device's front
+  // edge, not its centre. The U throat starts at baked Z = 66.3 (tray frame
+  // recentres the source Z by -0.2), so the 133.9mm-deep MX64 sits behind it:
+  // its front face is recessed 23.9mm from the faceplate and 22.6mm of cable
+  // room is left at the back. The floor's top face is at baked Y = 3.831
+  // (source 3.5mm x the 44.45/45.25 squash), so the 25.23mm-tall device is
+  // centred at y = 3.831 + 25.23 / 2.
+  'shelf-mx64-1u': {
+    slots: [{ x: 0, y: 16.444, z: 66.3, accepts: ['mx64' as DeviceType] }],
+  },
+  // "8-bay HDD enclosure (3U)": one slot per caddy handle, in the baked shelf
+  // frame (X centred mm, Y = mm above the shelf bottom, Z = mounting plane in
+  // centred-depth mm that the handle hangs behind of). Derived in
+  // tools/make-hdd-8bay-3u.py: bay pitch ~27mm measured off the bottom
+  // plate's own guide ribs (x), handle bottom 45mm pre-squash -> 40.67 baked
+  // + half the 83.1mm handle height (y = 82.22), handle front 8mm ahead of
+  // the plates' front face (z = 104.75, shelf depth recentres at 96.75).
+  'shelf-hdd-8bay-3u': {
+    slots: [-93.25, -66, -39, -12, 15, 42, 69, 95.75].map((x) => ({
+      x,
+      y: 82.22,
+      z: 104.75,
+      accepts: ['hdd-caddy-handle' as DeviceType],
+    })),
+  },
 }
 
 export function shelfDeviceSlots(shelfType: ShelfType): DeviceSlot[] {
@@ -240,6 +297,19 @@ export function shelfAcceptsDevices(shelfType: ShelfType): DeviceType[] {
 
 export function shelfHasDeviceSlots(shelfType: ShelfType): boolean {
   return shelfDeviceSlots(shelfType).length > 0
+}
+
+/**
+ * Device a new shelf of a slotted type comes pre-filled with, one per slot
+ * (the 8-bay enclosure arrives with its 8 handles fitted, the way the fan
+ * plate does NOT arrive with fans). Applies only when the shelf has no device
+ * list yet (freshly added, or a legacy save/share without one) — an explicit
+ * list, even all-empty, is always respected as the user's choice. See
+ * `normalizeShelfDevices` in domain/shelves.ts.
+ */
+export const SHELF_DEFAULT_DEVICES: Partial<Record<ShelfType, DeviceType>> = {
+  'shelf-hdd-8bay-3u': 'hdd-caddy-handle',
+  'shelf-mx64-1u': 'mx64',
 }
 
 // --- Base quantities for the parts list --------------------------------------
