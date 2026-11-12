@@ -224,7 +224,38 @@ That status drives three places:
   "bought or cut" table; `manifest.xlsx` — the same table with a filter and a
   Summary sheet of counts per group and status; and `manifest.csv` — the same
   rows for scripts. `PRINT-ME.txt` explains all three. `source-only` files are
-  never shipped as if they were printable.
+  never shipped as if they were printable. Every row also carries a **Source**,
+  and the workbook gained a `Sources` sheet listing the model page, the files it
+  explains, and how it was verified.
+
+### Where the model files come from
+
+`src/domain/sources.ts` maps each file in `public/models-3d/` to where it came
+from, because a planner that hands out STLs without a trail is a liability:
+
+| Kind          | Meaning                                                        |
+|---------------|----------------------------------------------------------------|
+| `makerworld`  | A specific MakerWorld model page, with the id in the map        |
+| `repo`        | Built by `tools/make-*.py` from measurements — visualization only |
+| `bought`      | Bought hardware; the mesh only shows it in 3D, nothing to print |
+| `unrecorded`  | Origin was never written down — flagged on purpose, never invented |
+
+The MakerWorld ids are not search guesses: every page was opened in a browser
+and matched by title on 2026-11-13. Header pages in that table:
+
+| Part | Source |
+|------|--------|
+| Frame kit (rails, handles, feet, panels) | [1294480](https://makerworld.com/en/models/1294480) |
+| Posts and side panels 1U–5U | [1294478](https://makerworld.com/en/models/1294478) |
+| Extension panels and post joiner | [1304384](https://makerworld.com/en/models/1304384) |
+| Open shelf 1U / keystone panel / 5×40mm fan panel | 1297318 / 1293816 / 1293794 |
+| 2U 7× SBC holder | [1293865](https://makerworld.com/en/models/1293865) |
+| 8-bay HDD enclosure | [2503273](https://makerworld.com/en/models/2503273) |
+
+One design limit is stated in the checklist rather than silently ignored: Lab
+Rax is designed to 10U. Stacking a second joint past that is physically
+possible, but the designer warns the printed parts become the weak point with a
+populated rack — so the 11U and 12U builds carry that warning on the sheet.
 
 The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
 every file in `public/models-3d/`. If you replace a model, re-measure it:

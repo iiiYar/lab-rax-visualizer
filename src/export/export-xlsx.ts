@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
-import { manifestRows, manifestTotals, STATUS_LABEL } from './print-manifest'
+import { manifestRows, manifestTotals, STATUS_LABEL, sourceCellText } from './print-manifest'
 
 /**
  * Absolute URL for a part file. Models are served from `models-3d/` beside the
@@ -52,7 +52,7 @@ export function exportXlsx(state: BuildState): void {
   // so the on-screen export and the downloaded archive cannot drift apart.
   const files = manifestRows(state)
   const fileAoa: (string | number)[][] = [
-    ['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Note', 'Download'],
+    ['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Note', 'Download'],
     ...files.map((f) => [
       f.no ?? '',
       '☐',
@@ -62,13 +62,14 @@ export function exportXlsx(state: BuildState): void {
       f.size,
       f.qty,
       STATUS_LABEL[f.status],
+      f.source.url ?? sourceCellText(f.source),
       f.note,
       modelUrl(f.file),
     ]),
   ]
 
   const totals = manifestTotals(files)
-  fileAoa.push([], ['', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', ''])
+  fileAoa.push([], ['', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', '', ''])
 
   const wsFiles = XLSX.utils.aoa_to_sheet(fileAoa)
   wsFiles['!cols'] = [
@@ -80,18 +81,19 @@ export function exportXlsx(state: BuildState): void {
     { wch: 20 },
     { wch: 5 },
     { wch: 18 },
-    { wch: 74 },
+    { wch: 50 },
+    { wch: 70 },
     { wch: 58 },
   ]
   wsFiles['!rows'] = [{ hpx: 22 }]
   wsFiles['!autofilter'] = {
-    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: files.length, c: 9 } }),
+    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: files.length, c: 10 } }),
   }
 
   // Turn the Download column into real hyperlinks (SheetJS stores them beside
   // the cell value; Excel renders the cell as clickable).
   for (let i = 0; i < files.length; i++) {
-    const ref = XLSX.utils.encode_cell({ r: i + 1, c: 9 })
+    const ref = XLSX.utils.encode_cell({ r: i + 1, c: 10 })
     const cell = wsFiles[ref]
     if (cell) cell.l = { Target: modelUrl(files[i].file), Tooltip: `Download ${files[i].file}` }
   }

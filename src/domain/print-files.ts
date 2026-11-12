@@ -1,5 +1,6 @@
 import type { BuildState, DeviceType, PartType, ShelfType } from './types'
 import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel, shelfTypeU } from './constants'
+import { sourceFor, type PartSource } from './sources'
 import {
   DEVICE_TYPE_PARTS,
   MODEL_FILES,
@@ -37,6 +38,8 @@ export interface PrintFile {
    * to a U slot — feet, handles, top/bottom panels, and bought devices.
    */
   u?: number
+  /** Where the file came from — see domain/sources.ts. */
+  source?: PartSource
 }
 
 /**
@@ -249,9 +252,13 @@ export function printFiles(state: BuildState): PrintFile[] {
   const add = (f: PrintFile) => {
     const sizeMm = FILE_SIZES[f.file]
     const fileNote = FILE_NOTES[f.file]
-    const next: PrintFile = fileNote
-      ? { ...f, status: f.status === 'source-only' ? f.status : fileNote.status, note: f.note ?? fileNote.note }
-      : f
+    const next: PrintFile = {
+      ...f,
+      ...(fileNote
+        ? { status: f.status === 'source-only' ? f.status : fileNote.status, note: f.note ?? fileNote.note }
+        : {}),
+      source: f.source ?? sourceFor(f.file),
+    }
     const existing = merged.get(f.file)
     if (!existing) {
       merged.set(f.file, { ...next, sizeMm })
