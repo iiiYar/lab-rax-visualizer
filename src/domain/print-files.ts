@@ -205,6 +205,21 @@ const SHELF_NOTES: Partial<Record<ShelfType, { status: PrintStatus; note: string
   },
 }
 
+/**
+ * Caveats that belong to a mesh rather than to a build slot — the same file can
+ * be reached from more than one part, so keying them by filename keeps them
+ * from going stale when a row changes.
+ */
+const FILE_NOTES: Record<string, { status: PrintStatus; note: string }> = {
+  'panel-top-bottom.stl': {
+    status: 'review',
+    note:
+      'This mesh is a plain 228 x 171.5 x 3 mm slab (12 triangles, no screw holes). ' +
+      'Use it as a cutting/drill template, or print panel-top-bottom-fan.stl, which ' +
+      'shares the same footprint and carries the real cutouts.',
+  },
+}
+
 /** Devices that are printed rather than bought. Everything else is real hardware. */
 const PRINTED_DEVICES: Partial<Record<DeviceType, true>> = {
   'hdd-caddy-handle': true,
@@ -224,15 +239,19 @@ export function printFiles(state: BuildState): PrintFile[] {
 
   const add = (f: PrintFile) => {
     const sizeMm = FILE_SIZES[f.file]
+    const fileNote = FILE_NOTES[f.file]
+    const next: PrintFile = fileNote
+      ? { ...f, status: f.status === 'source-only' ? f.status : fileNote.status, note: f.note ?? fileNote.note }
+      : f
     const existing = merged.get(f.file)
     if (!existing) {
-      merged.set(f.file, { ...f, sizeMm })
+      merged.set(f.file, { ...next, sizeMm })
       return
     }
-    existing.quantity += f.quantity
+    existing.quantity += next.quantity
     // Keep the most cautious status if a file is shared by two rows.
-    if (existing.status === 'print' && f.status !== 'print') existing.status = f.status
-    if (!existing.note && f.note) existing.note = f.note
+    if (existing.status === 'print' && next.status !== 'print') existing.status = next.status
+    if (!existing.note && next.note) existing.note = next.note
   }
 
   for (const part of ['verticalRails', 'heroEdge', 'widthRails', 'horizontalEdges', 'sidePanels', 'topPanel', 'bottomPanel', 'handles', 'feet'] as PartType[]) {
