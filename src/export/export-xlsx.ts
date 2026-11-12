@@ -1,7 +1,7 @@
 import * as XLSX from 'xlsx'
 import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
-import { printFiles, type PrintStatus } from '../domain/print-files'
+import { manifestRows, manifestTotals, STATUS_LABEL } from './print-manifest'
 
 /**
  * Absolute URL for a part file. Models are served from `models-3d/` beside the
@@ -10,12 +10,6 @@ import { printFiles, type PrintStatus } from '../domain/print-files'
  */
 function modelUrl(file: string): string {
   return new URL(`models-3d/${file}`, document.baseURI).href
-}
-
-const STATUS_LABEL: Record<PrintStatus, string> = {
-  print: 'Print',
-  review: 'Review first',
-  'source-only': 'Not a print source',
 }
 
 /**
@@ -54,35 +48,50 @@ export function exportXlsx(state: BuildState): void {
   XLSX.utils.book_append_sheet(wb, ws, `Lab Rax ${state.rackU}U`)
 
   // --- Sheet 2: print manifest with live links ------------------------------
-  const files = printFiles(state)
+  // Same rows the zip's manifest.csv/xlsx and print-list.html are built from,
+  // so the on-screen export and the downloaded archive cannot drift apart.
+  const files = manifestRows(state)
   const fileAoa: (string | number)[][] = [
-    ['Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Note', 'Download'],
+    ['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Note', 'Download'],
     ...files.map((f) => [
+      f.no ?? '',
+      '☐',
+      f.unit,
       f.part,
       f.file,
-      f.sizeMm ? f.sizeMm.map((n) => Math.round(n * 100) / 100).join(' × ') : '',
-      f.quantity,
+      f.size,
+      f.qty,
       STATUS_LABEL[f.status],
-      f.note ?? '',
+      f.note,
       modelUrl(f.file),
     ]),
   ]
 
+  const totals = manifestTotals(files)
+  fileAoa.push([], ['', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', ''])
+
   const wsFiles = XLSX.utils.aoa_to_sheet(fileAoa)
   wsFiles['!cols'] = [
+    { wch: 5 },
+    { wch: 6 },
+    { wch: 6 },
     { wch: 30 },
     { wch: 32 },
     { wch: 20 },
-    { wch: 6 },
-    { wch: 16 },
-    { wch: 62 },
+    { wch: 5 },
+    { wch: 18 },
+    { wch: 74 },
     { wch: 58 },
   ]
+  wsFiles['!rows'] = [{ hpx: 22 }]
+  wsFiles['!autofilter'] = {
+    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: files.length, c: 9 } }),
+  }
 
   // Turn the Download column into real hyperlinks (SheetJS stores them beside
   // the cell value; Excel renders the cell as clickable).
   for (let i = 0; i < files.length; i++) {
-    const ref = XLSX.utils.encode_cell({ r: i + 1, c: 6 })
+    const ref = XLSX.utils.encode_cell({ r: i + 1, c: 9 })
     const cell = wsFiles[ref]
     if (cell) cell.l = { Target: modelUrl(files[i].file), Tooltip: `Download ${files[i].file}` }
   }

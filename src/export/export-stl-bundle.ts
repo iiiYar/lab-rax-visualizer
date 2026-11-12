@@ -1,6 +1,7 @@
 import type { BuildState } from '../domain/types'
-import { printFiles, type PrintFile, type PrintStatus } from '../domain/print-files'
+import { printFiles, type PrintFile } from '../domain/print-files'
 import { download } from './download'
+import { manifestCsv, manifestRows, manifestXlsx, printListHtml } from './print-manifest'
 
 export interface BundleProgress {
   /** Files already added to the archive. */
@@ -9,19 +10,8 @@ export interface BundleProgress {
   file: string
 }
 
-const STATUS_LABEL: Record<PrintStatus, string> = {
-  print: 'Print',
-  review: 'Review first',
-  'source-only': 'Not a print source',
-}
-
 function modelUrl(file: string): string {
   return new URL(`models-3d/${file}`, document.baseURI).href
-}
-
-function csvCell(value: string | number): string {
-  const s = String(value)
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 
 /** Everything a maker needs to know before pressing "slice". */
@@ -39,7 +29,14 @@ function readme(state: BuildState, files: PrintFile[]): string {
     '               top/bottom panels, feet, handles',
     '  shelves/     one file per shelf type in this build',
     '  accessories/ printed add-ons (HDD caddy handles, power buttons)',
-    '  manifest.csv every file with quantity, status and note',
+    '',
+    'THE PRINT LIST',
+    '  print-list.html  open this first — the checklist, grouped frame / shelves /',
+    '                   accessories and ordered 1U upward, with a tick box per',
+    '                   part and the piece count per file. Prints cleanly.',
+    '  manifest.xlsx    the same table for a spreadsheet, plus a Summary sheet',
+    '                   with counts per group and per status.',
+    '  manifest.csv     the same table as plain text, for scripts or grep.',
     '',
     'PRINT NOTES',
     '  - Binary STL/3MF, units are millimetres. Do not scale when importing.',
@@ -49,6 +46,9 @@ function readme(state: BuildState, files: PrintFile[]): string {
     '  - "Review first" rows have open shells in the mesh; run a manifold repair',
     '    (slicer "fix model" / Make Manifold) before slicing.',
     '  - Sold/bought hardware is not in this archive. Only printed parts are.',
+    '',
+    `TOTALS: ${printable.reduce((n, f) => n + f.quantity, 0)} pieces to print across ` +
+      `${printable.length} files, ${skipped.length} listed but not printable.`,
   ]
 
   if (skipped.length > 0) {
@@ -63,17 +63,6 @@ function readme(state: BuildState, files: PrintFile[]): string {
     '  https://the-diy-life.com/introducing-lab-rax-a-3d-printable-modular-10-rack-system/',
     '',
   )
-  return lines.join('\n')
-}
-
-function manifestCsv(files: PrintFile[]): string {
-  const lines = ['Part,File,Size mm,Qty,Status,Note']
-  for (const f of files) {
-    const size = f.sizeMm ? f.sizeMm.map((n) => Math.round(n * 100) / 100).join(' x ') : ''
-    lines.push(
-      [f.part, f.file, size, f.quantity, STATUS_LABEL[f.status], f.note ?? ''].map(csvCell).join(','),
-    )
-  }
   return lines.join('\n')
 }
 
@@ -119,7 +108,11 @@ export async function buildStlBundle(
   }
 
   root.file('PRINT-ME.txt', readme(state, files))
-  root.file('manifest.csv', manifestCsv(files))
+  // One ordered row set, three renderings — see print-manifest.ts.
+  const rows = manifestRows(state)
+  root.file('print-list.html', printListHtml(rows, state))
+  root.file('manifest.xlsx', manifestXlsx(rows, state))
+  root.file('manifest.csv', manifestCsv(rows, state))
 
   onProgress?.({ done: printable.length, total: printable.length, file: 'Compressing…' })
   const blob = await zip.generateAsync({

@@ -217,10 +217,14 @@ That status drives three places:
 - the **Print files** sheet of the XLSX export — part, file, measured size,
   quantity, status, note, and a clickable download link per file;
 - the **STL ZIP** button in the header, which fetches every `print`/`review`
-  file, sorts them into `frame/`, `shelves/`, `accessories/`, and adds
-  `PRINT-ME.txt` plus `manifest.csv` that list what was included and what was
-  deliberately skipped. `source-only` files are never shipped as if they were
-  printable.
+  file, sorts them into `frame/`, `shelves/`, `accessories/`, and ships one
+  ordered row set three ways (`src/export/print-manifest.ts`):
+  `print-list.html` — a printable checklist with a tick box and piece count
+  per part, split into the print queue (numbered, 1U upward) and a short
+  "bought or cut" table; `manifest.xlsx` — the same table with a filter and a
+  Summary sheet of counts per group and status; and `manifest.csv` — the same
+  rows for scripts. `PRINT-ME.txt` explains all three. `source-only` files are
+  never shipped as if they were printable.
 
 The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
 every file in `public/models-3d/`. If you replace a model, re-measure it:

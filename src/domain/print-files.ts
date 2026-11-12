@@ -1,5 +1,5 @@
 import type { BuildState, DeviceType, PartType, ShelfType } from './types'
-import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel } from './constants'
+import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel, shelfTypeU } from './constants'
 import {
   DEVICE_TYPE_PARTS,
   MODEL_FILES,
@@ -32,6 +32,11 @@ export interface PrintFile {
   note?: string
   /** Bounding box in the file's own axes, measured from the mesh (mm). */
   sizeMm?: [number, number, number]
+  /**
+   * Rack units this part occupies (1–12). Undefined for parts that do not map
+   * to a U slot — feet, handles, top/bottom panels, and bought devices.
+   */
+  u?: number
 }
 
 /**
@@ -90,6 +95,7 @@ function segmentFiles(
     quantity: perRack,
     status: material === 'acrylic' ? 'source-only' : 'print',
     group: 'frame',
+    u,
     note:
       material === 'acrylic'
         ? 'Acrylic option: cut from sheet, not printed — use the mesh outline as a cutting reference.'
@@ -118,6 +124,7 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           quantity: BASE_QUANTITIES.widthRails ?? 3,
           status: 'print',
           group: 'frame',
+          u: 1,
         },
       ]
     case 'heroEdge':
@@ -128,6 +135,7 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           quantity: BASE_QUANTITIES.heroEdge ?? 1,
           status: 'print',
           group: 'frame',
+          u: 1,
         },
       ]
     case 'horizontalEdges':
@@ -138,6 +146,7 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           quantity: BASE_QUANTITIES.horizontalEdges ?? 4,
           status: 'print',
           group: 'frame',
+          u: 1,
         },
       ]
     case 'topPanel':
@@ -267,6 +276,7 @@ export function printFiles(state: BuildState): PrintFile[] {
       quantity: 1,
       status: note?.status ?? 'print',
       group: 'shelves',
+      u: shelfTypeU(shelf.shelfType),
       note: note?.note,
     })
   }
@@ -293,11 +303,16 @@ export function printFiles(state: BuildState): PrintFile[] {
     })
   }
 
+  // Group first, then rack height (1U → 12U) so a mixed build reads bottom-up
+  // like the rack itself; parts outside the U grid (feet, panels, devices) go
+  // last within their group.
   const order: Record<PrintGroup, number> = { frame: 0, shelves: 1, accessories: 2 }
   const statusOrder: Record<PrintStatus, number> = { print: 0, review: 1, 'source-only': 2 }
+  const uKey = (f: PrintFile) => (f.u === undefined ? Number.POSITIVE_INFINITY : f.u)
   return [...merged.values()].sort(
     (a, b) =>
       order[a.group] - order[b.group] ||
+      uKey(a) - uKey(b) ||
       statusOrder[a.status] - statusOrder[b.status] ||
       a.part.localeCompare(b.part),
   )
