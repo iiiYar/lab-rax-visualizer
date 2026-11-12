@@ -14,6 +14,20 @@ function modelUrl(file: string): string {
   return new URL(`models-3d/${file}`, document.baseURI).href
 }
 
+/**
+ * Lower-case hex SHA-256 of one file's bytes.
+ *
+ * The archive claims each file comes from a named model page; a hash is what
+ * makes that claim checkable after the fact — download the model yourself,
+ * hash it, compare. Without it "this is the designer's rail" is only a label.
+ */
+async function sha256(bytes: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 /** Everything a maker needs to know before pressing "slice". */
 function readme(state: BuildState, files: PrintFile[]): string {
   const printable = files.filter((f) => f.status === 'print' || f.status === 'review')
@@ -38,6 +52,9 @@ function readme(state: BuildState, files: PrintFile[]): string {
     '  manifest.xlsx    the same table for a spreadsheet, plus a Summary sheet',
     '                   with counts per group and per status.',
     '  manifest.csv     the same table as plain text, for scripts or grep.',
+    '  SHA256SUMS.txt   one checksum per shipped file. Download the model from',
+    '                   the source page, hash it, compare — that is how you',
+    '                   check a file here really is the designer\u2019s part.',
     '',
     'PRINT NOTES',
     '  - Binary STL/3MF, units are millimetres. Do not scale when importing.',
@@ -112,16 +129,21 @@ export async function buildStlBundle(
   const root = zip.folder(`lab-rax-${state.rackU}U`)
   if (!root) throw new Error('Could not create the archive root.')
 
+  const sums: string[] = []
   for (let i = 0; i < printable.length; i++) {
     const entry = printable[i]
     onProgress?.({ done: i, total: printable.length, file: entry.file })
 
     const folder = root.folder(entry.group)
     if (!folder) throw new Error(`Could not create the ${entry.group} folder.`)
-    folder.file(entry.file, await fetchFile(entry.file))
+    const bytes = await fetchFile(entry.file)
+    folder.file(entry.file, bytes)
+    sums.push(`${await sha256(bytes)}  ${entry.group}/${entry.file}`)
   }
 
   root.file('PRINT-ME.txt', readme(state, files))
+  // Release-style checksums: the same line format `sha256sum -c` reads.
+  root.file('SHA256SUMS.txt', `${sums.join('\n')}\n`)
   // One ordered row set, three renderings — see print-manifest.ts.
   const rows = manifestRows(state)
   root.file('print-list.html', printListHtml(rows, state))

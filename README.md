@@ -229,6 +229,11 @@ That status drives three places:
   and the workbook gained a `Sources` sheet listing the model page, the files it
   explains, and how it was verified.
 
+  The archive also carries `SHA256SUMS.txt`, one checksum per shipped file in
+  `sha256sum -c` format, hashed from the same bytes that were zipped. That is
+  what turns "this is the designer's rail" from a label into something a maker
+  can verify: download the model, hash it, compare.
+
 ### Where the model files come from
 
 `src/domain/sources.ts` maps each file in `public/models-3d/` to where it came
