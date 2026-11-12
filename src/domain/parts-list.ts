@@ -1,12 +1,14 @@
-import type { BuildState, DeviceType, PartType, PatternId } from './types'
+import type { BuildState, DeviceType, PartType, PatternId, ShelfType } from './types'
 import {
   BASE_QUANTITIES,
   PART_LABELS,
   deviceLabel,
   isOptional,
   patternLabel,
+  shelfTypeLabel,
 } from './constants'
-import { DEVICE_TYPE_PARTS, devicePartColor } from './models'
+import { DEVICE_TYPE_PARTS, SHELF_TYPE_FILES, devicePartColor } from './models'
+import { printFilesForPart } from './print-files'
 
 export interface PartRow {
   part: string
@@ -14,6 +16,8 @@ export interface PartRow {
   pattern: string
   solid: string
   quantity: number
+  /** Printable source file(s) for this row, when it has one. */
+  files: string[]
 }
 
 function patternText(pattern: PatternId, solid: boolean): { pattern: string; solid: string } {
@@ -56,25 +60,32 @@ export function buildPartsList(state: BuildState): PartRow[] {
       pattern: pt.pattern,
       solid: pt.solid,
       quantity: qty,
+      files: [...new Set(printFilesForPart(state, part).map((f) => f.file))],
     })
   }
 
-  // Shelves: group by (u, solid, color, pattern).
-  const shelfGroups = new Map<string, { u: number; count: number; color: string; pattern: PatternId; solid: boolean }>()
+  // Shelves: group by (type, solid, color, pattern). Grouping on the type —
+  // not just the U height — is what keeps a 1U fan plate, a 1U keystone plate
+  // and a 1U open shelf from collapsing into one anonymous "1U shelf" row.
+  const shelfGroups = new Map<
+    string,
+    { type: ShelfType; count: number; color: string; pattern: PatternId; solid: boolean }
+  >()
   for (const s of shelves) {
-    const key = `${s.u}|${s.solid}|${s.color}|${s.pattern}`
+    const key = `${s.shelfType}|${s.solid}|${s.color}|${s.pattern}`
     const g = shelfGroups.get(key)
     if (g) g.count += 1
-    else shelfGroups.set(key, { u: s.u, count: 1, color: s.color, pattern: s.pattern, solid: s.solid })
+    else shelfGroups.set(key, { type: s.shelfType, count: 1, color: s.color, pattern: s.pattern, solid: s.solid })
   }
   for (const g of shelfGroups.values()) {
     rows.push({
-      part: `${g.u}U shelf`,
+      part: shelfTypeLabel(g.type),
       color: g.color,
       pattern: g.pattern === 'none' ? '—' : patternLabel(g.pattern),
       // For shelves the "solid" column describes the shelf face itself.
       solid: g.solid ? 'Solid' : 'Holed',
       quantity: g.count,
+      files: [SHELF_TYPE_FILES[g.type]],
     })
   }
 
@@ -100,11 +111,14 @@ export function buildPartsList(state: BuildState): PartRow[] {
   }
   for (const g of deviceGroups.values()) {
     rows.push({
-      part: deviceLabel(g.type),
+      // Devices are bought, not printed; the suffix keeps a device row from
+      // reading like the printed shelf that carries it (e.g. the MX64 tray).
+      part: `${deviceLabel(g.type)} (device)`,
       color: g.color,
       pattern: '—',
       solid: '—',
       quantity: g.count,
+      files: [],
     })
   }
 
