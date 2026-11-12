@@ -8,7 +8,7 @@ import {
   shelfTypeLabel,
 } from './constants'
 import { DEVICE_TYPE_PARTS, SHELF_TYPE_FILES, devicePartColor } from './models'
-import { printFilesForPart } from './print-files'
+import { JOINER_FILE, joinerCount, printFilesForPart } from './print-files'
 
 export interface PartRow {
   part: string
@@ -61,6 +61,23 @@ export function buildPartsList(state: BuildState): PartRow[] {
       solid: pt.solid,
       quantity: qty,
       files: [...new Set(printFilesForPart(state, part).map((f) => f.file))],
+    })
+  }
+
+  // The joiner is a printed frame part, derived from the same segment
+  // decomposition as the posts. Without it a parts export could list eight
+  // rails for a 12U rack and stay silent about the eight joiners that hold
+  // them together — the list has to be complete or it is a shopping list with
+  // a hole in it.
+  const joiners = joinerCount(state.rackU)
+  if (joiners > 0) {
+    rows.push({
+      part: 'Post joiner',
+      color: parts.verticalRails.color,
+      pattern: '—',
+      solid: '—',
+      quantity: joiners,
+      files: [JOINER_FILE],
     })
   }
 

@@ -11,8 +11,11 @@
  * - `makerworld` only when the model page genuinely contains that part. All
  *   pages below were opened in a browser and matched by page title on
  *   2026-11-13 — the ids are not guessed from search results.
- * - `repo` for meshes built by `tools/make-*.py`. Those are visualisation
- *   geometry: they are not print sources and must stay `source-only`.
+ * - `repo` for meshes built by `tools/make-*.py`. The label has to say what
+ *   the tool did, because "built here" covers two very different outcomes: a
+ *   mesh drawn only to show a part in 3D (never printable), and the owner's own
+ *   STL re-axed for the viewer (printable, and the label must not claim
+ *   otherwise). A squashed visualisation mesh still never becomes a print row.
  * - `supplied` when the file arrived as a download from the owner rather than
  *   from a page we opened. The bytes are verified by hash; the page is not
  *   claimed, because a page we never saw is not a source.
@@ -55,17 +58,20 @@ export const ACCESSORY_SOURCES: Record<string, PartSource> = {
   'shelf-sbc-7-2u.stl': mw('1293865', '2U 7× SBC holder'),
   'plate-1u.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
   'plate-2u.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
-  'plate-halfu.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
   'shelf-plate-80mm-fan-2u.stl': mw('1385530', '2U two-80mm fan holder'),
   // remixes that live on their own pages, not on the designer's profile
   'shelf-slotted-1u.stl': mw('1357259', 'Lab Rax 1U shelf with slots'),
   'shelf-tiny-rack-left-keystone.stl': mw('2213343', 'Lab Rax mount for Lenovo Tiny'),
 }
 
-/** Built by `tools/make-*.py` from measurements — never a print source. */
-const repoBuilt = (tool: string): PartSource => ({
+/**
+ * Built by `tools/make-*.py`. The default label is the honest one for a mesh
+ * that exists only to be looked at; a real part that the tool merely re-axed
+ * passes its own label instead of borrowing "visualization only".
+ */
+const repoBuilt = (tool: string, label = `Built by ${tool} — visualization only`): PartSource => ({
   kind: 'repo',
-  label: `Built by ${tool} — visualization only`,
+  label,
 })
 
 /** Bought hardware: the mesh here only shows the part in 3D. Nothing to print. */
@@ -118,8 +124,18 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'lenovo-tiny-front.stl': repoBuilt('tools/make-lenovo-tiny.py'),
   'minisforum-ms-01-body.stl': repoBuilt('tools/make-minisforum-ms01.py'),
   'minisforum-ms-01-front.stl': repoBuilt('tools/make-minisforum-ms01.py'),
-  'shelf-mx64-1u.stl': repoBuilt('tools/make-mx64-parts.py'),
-  'shelf-minisforum-ms-1u.stl': repoBuilt('tools/make-minisforum-ms01.py'),
+  // Real shelves, not drawings: the tool only rewrites the axes, so the label
+  // says that instead of the "visualization only" default. The MX64 faceplate
+  // is also scaled 45.25 -> 44.45 mm on height so it obeys the u*44.45 rule.
+  'shelf-mx64-1u.stl': repoBuilt(
+    'tools/make-mx64-parts.py',
+    'Owner STL, re-axed by tools/make-mx64-parts.py — faceplate height normalised to 1U',
+  ),
+  'shelf-minisforum-ms-1u.stl': repoBuilt(
+    'tools/make-minisforum-ms01.py',
+    'Owner STL, re-axed by tools/make-minisforum-ms01.py — open detail shells, see note',
+  ),
+  'device-mx64.stl': repoBuilt('tools/make-mx64-parts.py'),
   // bought parts the app draws
   'device-keystone-jack-body.stl': BOUGHT,
   'device-keystone-jack-insert.stl': BOUGHT,

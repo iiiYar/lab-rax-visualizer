@@ -241,6 +241,14 @@ the source**; a mismatch prints a warning above it and names both hashes. Only
 files with a real reference copy are listed — hashing our own file and calling
 it provenance would prove nothing.
 
+Two frame parts are worth naming because the filenames mislead. The top cover
+is `panel-top-bottom-fan.stl`, the kit's vented panel and the one the viewer
+draws on top; `panel-top-bottom.stl` is a 12-triangle slab with no screw holes,
+so it is a cutting template for the bottom, not a part to slice. And the post
+joiner is derived, not typed in: `buildPartsList` adds it with the same
+`joinerCount` the manifest uses, so a parts export cannot list eight rails for
+a 12U rack and stay silent about the eight joiners that hold them together.
+
 ### Where the model files come from
 
 `src/domain/sources.ts` maps each file in `public/models-3d/` to where it came
@@ -265,7 +273,7 @@ and matched by title on 2026-11-13. Header pages in that table:
 | Open shelf 1U / keystone panel / 5×40mm fan panel | 1297318 / 1293816 / 1293794 |
 | 2U 7× SBC holder | [1293865](https://makerworld.com/en/models/1293865) |
 | 8-bay HDD enclosure | [2503273](https://makerworld.com/en/models/2503273) |
-| Blank cover plates 1/2U–2U | [1385541](https://makerworld.com/en/models/1385541) |
+| Blank cover plates 1U–2U | [1385541](https://makerworld.com/en/models/1385541) |
 | 2U two-80mm fan holder | [1385530](https://makerworld.com/en/models/1385530) |
 | 1U shelf with slots (remix) | [1357259](https://makerworld.com/en/models/1357259) |
 | Lenovo Tiny mount (remix) | [2213343](https://makerworld.com/en/models/2213343) |

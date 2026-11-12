@@ -51,6 +51,10 @@ export function RackReal() {
   const widthRail = use3mfPart(MODEL_FILES.railHorizontalWidth)
   const depthRail = useStlPart(MODEL_FILES.railHorizontalDepth)
   const topBottomPanel = useStlPart(MODEL_FILES.panelTopBottom)
+  // Top cover is the vented part, not the plain slab: same footprint (the
+  // loader re-centres on each mesh's own bbox), so it lands exactly where the
+  // slab sat while showing the openings the print list tells you to print.
+  const topVentedPanel = useStlPart(MODEL_FILES.panelTopBottomFan)
   const foot = use3mfPart(MODEL_FILES.foot)
   const handle = use3mfPart(MODEL_FILES.handle)
 
@@ -397,7 +401,7 @@ export function RackReal() {
       )}
       {toggles.topPanel && visibility.topPanel && (
         <RealMesh
-          geometry={topBottomPanel.geometry}
+          geometry={topVentedPanel.geometry}
           color={parts.topPanel.color}
           material={parts.topPanel.material}
           position={[0, totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM - TOP_PANEL_INSET_MM, 0]}

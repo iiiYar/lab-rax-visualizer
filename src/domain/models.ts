@@ -41,6 +41,10 @@ export const MODEL_FILES = {
   railHorizontalWidth: 'rail-width.3mf',
   railHorizontalDepth: 'rail-depth.stl',
   panelTopBottom: 'panel-top-bottom.stl',
+  /** The 5U kit's real top cover: same footprint as the slab, vented with the
+   * fan openings. The slab is only a cutting template, so the two are not
+   * interchangeable in the print list even though they look alike at a glance. */
+  panelTopBottomFan: 'panel-top-bottom-fan.stl',
   foot: 'foot.3mf',
   handle: 'handle.3mf',
 } as const

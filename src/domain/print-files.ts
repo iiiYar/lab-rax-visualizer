@@ -69,6 +69,7 @@ const FILE_SIZES: Record<string, [number, number, number]> = {
   'rail-width.3mf': [282.25, 54.85, 54.85],
   'rail-depth.stl': [30, 170, 35],
   'panel-top-bottom.stl': [228.05, 171.5, 3],
+  'panel-top-bottom-fan.stl': [228.05, 171.5, 3],
   'post-joiner.stl': [23.85, 39.7, 7],
   'foot.3mf': [26, 26, 12],
   'handle.3mf': [20, 170, 32.5],
@@ -159,14 +160,30 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           u: 1,
         },
       ]
+    // The top cover is the kit's vented panel — the part with the fan openings.
+    // The plain slab is only a 12-triangle box with no screw holes, so it is a
+    // cutting template for the bottom, never the thing you slice for it.
     case 'topPanel':
+      return [
+        {
+          file: MODEL_FILES.panelTopBottomFan,
+          part: 'Top panel (vented)',
+          quantity: 1,
+          status: material === 'acrylic' ? 'source-only' : 'print',
+          group: 'frame',
+          note:
+            material === 'acrylic'
+              ? 'Acrylic option: cut from sheet, not printed — use the mesh outline as a cutting reference.'
+              : 'The 5U kit\u2019s top cover: same footprint as the slab, with the fan openings cut in.',
+        },
+      ]
     case 'bottomPanel':
       return [
         {
           file: MODEL_FILES.panelTopBottom,
-          part: 'Top / bottom panel',
+          part: 'Bottom panel',
           quantity: 1,
-          status: material === 'acrylic' ? 'source-only' : 'print',
+          status: material === 'acrylic' ? 'source-only' : 'review',
           group: 'frame',
           note:
             material === 'acrylic'
@@ -233,9 +250,9 @@ const FILE_NOTES: Record<string, { status: PrintStatus; note: string }> = {
   'panel-top-bottom.stl': {
     status: 'review',
     note:
-      'This mesh is a plain 228 x 171.5 x 3 mm slab (12 triangles, no screw holes). ' +
-      'Use it as a cutting/drill template, or print panel-top-bottom-fan.stl, which ' +
-      'shares the same footprint and carries the real cutouts.',
+      'Plain 228 x 171.5 x 3 mm slab (12 triangles, no screw holes) — a cutting ' +
+      'template rather than a finished panel. The top cover in this build is the ' +
+      'vented one; this file is what the bottom is cut from.',
   },
 }
 
@@ -268,7 +285,7 @@ export function joinerCount(rackU: number): number {
  * bolted kit. This build is the insert one; the bolted variant is on the model
  * page for anyone running `1464819`.
  */
-const JOINER_FILE = 'post-joiner.stl'
+export const JOINER_FILE = 'post-joiner.stl'
 
 /**
  * Every file the current build references, flattened for the manifest and the
