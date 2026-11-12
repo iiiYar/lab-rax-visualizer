@@ -5,7 +5,8 @@ a 3D-printable modular 10" rack system. Users pick a rack height (4U–12U),
 color each part, lay out shelves, fit devices (fans etc.) into the shelves that
 take them, and see a real-time 3D model — built from
 the actual Lab Rax STL/3MF part files — update in the viewport. The build
-can be exported as a checkable parts list (CSV or XLSX) and shared via URL.
+can be exported as a checkable parts list (CSV or XLSX), downloaded as a
+ready-to-slice ZIP of every printable file, and shared via URL.
 
 There is no backend, no database, no login, and no build-time secrets. It is
 a fully static single-page app — all state lives in the browser
@@ -22,6 +23,7 @@ a fully static single-page app — all state lives in the browser
 | Styling             | Tailwind CSS                                          |
 | Color picker widget | `react-colorful`                                      |
 | Spreadsheet export  | `xlsx` (SheetJS)                                      |
+| ZIP packaging       | `jszip` (loaded on demand)                            |
 
 No router, no server framework, no test runner is configured. `npm run build`
 produces a static `dist/` folder deployable to any static host.
@@ -50,7 +52,7 @@ src/
       parts/real-mesh.tsx             Renders one prepared part geometry with a flat colored material
       materials/use-model-geometry.ts Loads + bakes an .stl/.3mf file into scene-space geometry
     layout/            App chrome
-      header.tsx         Branding, live size/part-count, Share/CSV/XLSX buttons
+      header.tsx         Branding, live size/part-count, Share/CSV/XLSX/STL ZIP buttons
       sidebar.tsx        Scrollable left menu: size → per-part controls → shelves
       ad-panel.tsx       Unobtrusive support-link panel (bottom of sidebar)
     controls/          Sidebar form controls, one per concern
@@ -64,8 +66,12 @@ src/
 
   export/              Parts-list export
     export-csv.ts      Plain CSV with a "☐" checkbox glyph column
-    export-xlsx.ts     SheetJS workbook, same columns
+    export-xlsx.ts     SheetJS workbook: parts list + "Print files" sheet with download links
+    export-stl-bundle.ts  Zips the printable meshes with PRINT-ME.txt + manifest.csv
     download.ts        Shared Blob-download helper
+
+  domain/print-files.ts  Which files each part needs, their measured sizes, and
+                         whether each one is printable (see "Print files" below)
 
   share/url-state.ts   Encode/decode a BuildState to/from a base64url `?b=` query param
 
@@ -191,6 +197,41 @@ are tracked separately from the printed shelf:
   device that opens this instance and survive container rebuilds. If the API
   is absent (static hosting) or offline, the module silently stays local-only;
   the sidebar shows whether it is in "server" or "local" mode.
+
+### Print files
+
+`src/domain/print-files.ts` is the single source of truth for "what do I
+actually print for this build". Every part maps to one or more files in
+`public/models-3d/`, with a measured bounding box and a status:
+
+| Status        | Meaning                                                             |
+|---------------|---------------------------------------------------------------------|
+| `print`       | Closed, manifold mesh — slice and print as-is                        |
+| `review`      | Printable shell but the file also carries open detail shells; repair or delete them first |
+| `source-only` | Not a print file: acrylic parts cut from sheet, meshes used only for visualization, and bought hardware |
+
+That status drives three places:
+
+- the **File** column of the parts list (`buildPartsList`), so a BOM row names
+  the exact file instead of only the part;
+- the **Print files** sheet of the XLSX export — part, file, measured size,
+  quantity, status, note, and a clickable download link per file;
+- the **STL ZIP** button in the header, which fetches every `print`/`review`
+  file, sorts them into `frame/`, `shelves/`, `accessories/`, and adds
+  `PRINT-ME.txt` plus `manifest.csv` that list what was included and what was
+  deliberately skipped. `source-only` files are never shipped as if they were
+  printable.
+
+The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
+every file in `public/models-3d/`. If you replace a model, re-measure it:
+
+```bash
+python3 -c "import trimesh; print(trimesh.load('public/models-3d/part.stl').extents)"
+```
+
+Shelf rows are grouped by `shelfType`, not by height — a 1U fan plate, a 1U
+keystone plate, and a 1U open shelf are three different parts and print from
+three different files.
 
 ### Known simplifications / stretch work not yet built
 
@@ -346,6 +387,7 @@ correctly from any subpath.
 | Give a shelf its own device slots                | Add the slot centres + accepted devices to `SHELF_DEVICE_SLOTS` (`constants.ts`) — the sidebar's Devices section picks it up automatically |
 | Change what's in the parts-list export           | `src/domain/parts-list.ts`                                |
 | Change export file format/columns                | `src/export/export-csv.ts`, `src/export/export-xlsx.ts`    |
+| Change which files a part prints from / print status | `src/domain/print-files.ts`                            |
 | Adjust camera framing / lighting / ground grid    | `src/components/viewer/scene.tsx`                        |
 | Change how real parts are positioned/oriented    | `src/components/viewer/rack-real.tsx`, measured constants in `src/domain/models.ts` |
 | Add per-part click-to-edit (the stretch feature) | Start from `selectedPartId` in `use-build-store.ts` and the `onPointerMissed` plumbing already in `scene.tsx` |

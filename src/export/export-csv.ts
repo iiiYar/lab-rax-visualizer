@@ -2,7 +2,7 @@ import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
 import { download } from './download'
 
-const HEADER = ['Done', 'Part', 'Color', 'Pattern', 'Solid/Backplate', 'Qty']
+const HEADER = ['Done', 'Part', 'File', 'Color', 'Pattern', 'Solid/Backplate', 'Qty']
 
 function csvCell(value: string | number): string {
   const s = String(value)
@@ -17,6 +17,7 @@ export function exportCsv(state: BuildState): void {
       [
         '☐', // checkbox glyph (CSV has no real form controls)
         r.part,
+        r.files.join(' | ') || '—',
         r.color,
         r.pattern,
         r.solid,

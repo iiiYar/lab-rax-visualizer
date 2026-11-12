@@ -3,6 +3,7 @@ import { useBuildStore } from '../../store/use-build-store'
 import { totalPartCount } from '../../domain/parts-list'
 import { exportCsv } from '../../export/export-csv'
 import { exportXlsx } from '../../export/export-xlsx'
+import { exportStlBundle } from '../../export/export-stl-bundle'
 import { buildShareUrl } from '../../share/url-state'
 import type { BuildState } from '../../domain/types'
 import { Menu } from '../../ui/menu'
@@ -20,6 +21,8 @@ export function Header() {
   const shelves = useBuildStore((s) => s.shelves)
   const palette = useBuildStore((s) => s.palette)
   const [shared, setShared] = useState(false)
+  // Non-null while the STL archive is being fetched and zipped.
+  const [bundle, setBundle] = useState<{ done: number; total: number } | null>(null)
 
   const count = totalPartCount({ rackU, parts, toggles, shelves, palette })
 
@@ -34,6 +37,24 @@ export function Header() {
       window.prompt('Copy your shareable build link:', url)
     }
   }
+
+  const onBundle = async () => {
+    if (bundle) return
+    setBundle({ done: 0, total: 0 })
+    try {
+      await exportStlBundle(currentBuild(), (p) => setBundle({ done: p.done, total: p.total }))
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Could not build the STL archive.')
+    } finally {
+      setBundle(null)
+    }
+  }
+
+  const bundleLabel = bundle
+    ? bundle.total > 0
+      ? `Zipping ${bundle.done}/${bundle.total}`
+      : 'Zipping…'
+    : 'STL ZIP'
 
   return (
     <header className="relative z-20 flex items-center justify-between gap-4 border-b border-white/10 bg-panel px-4 py-2.5">
@@ -77,6 +98,14 @@ export function Header() {
           CSV
         </button>
         <button
+          onClick={onBundle}
+          disabled={bundle !== null}
+          title="Download every printable STL/3MF in this build as a zip"
+          className="rounded-md bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 disabled:cursor-progress disabled:opacity-60 pointer-coarse:py-2.5"
+        >
+          {bundleLabel}
+        </button>
+        <button
           onClick={() => exportXlsx(currentBuild())}
           className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110 pointer-coarse:py-2.5"
         >
@@ -90,6 +119,7 @@ export function Header() {
           items={[
             { id: 'share', label: shared ? '✓ Link copied' : 'Share', onSelect: onShare },
             { id: 'csv', label: 'CSV', onSelect: () => exportCsv(currentBuild()) },
+            { id: 'stl', label: bundleLabel, onSelect: onBundle },
             {
               id: 'xlsx',
               label: 'Export XLSX',
