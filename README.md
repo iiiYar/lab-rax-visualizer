@@ -209,6 +209,7 @@ actually print for this build". Every part maps to one or more files in
 | `print`       | Closed, manifold mesh — slice and print as-is                        |
 | `review`      | Printable shell but the file also carries open detail shells; repair or delete them first |
 | `source-only` | Not a print file: acrylic parts cut from sheet, meshes used only for visualization, and bought hardware |
+| `download`    | Printed part with no mesh here — the row gives the count and the model page, and stays out of the zip |
 
 That status drives three places:
 
@@ -256,6 +257,27 @@ One design limit is stated in the checklist rather than silently ignored: Lab
 Rax is designed to 10U. Stacking a second joint past that is physically
 possible, but the designer warns the printed parts become the weak point with a
 populated rack — so the 11U and 12U builds carry that warning on the sheet.
+The app says it too: past 10U the header shows a `Past the 10U design limit`
+chip (and the touch controls sheet shows the same line), so the warning is not
+buried in an export nobody opened yet.
+
+### Joinery: the part that is printed but not shipped
+
+Posts and panels only come in 1–5U segments, so every rack taller than 5U has a
+joint, and each joint takes one printed **post joiner per post** — four per
+joint. That row is derived, not typed in:
+
+```ts
+joinerCount(rackU) = (segments(rackU).length - 1) * 4   // 8U → 4, 12U → 8
+```
+
+The app has no mesh for it (it lives in the designer's extension pack), so the
+row carries the `download` status: it appears in the manifest, the CSV, the
+workbook and the checklist under **Printed, but not in this archive**, with the
+count and the model page — and it is deliberately left out of the zip, because
+pointing at a filename that is not there is worse than saying so. Drop a mesh
+into `public/models-3d/` and set `JOINER_FILE` in `domain/print-files.ts` to
+turn it into a normal `print` row.
 
 The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
 every file in `public/models-3d/`. If you replace a model, re-measure it:

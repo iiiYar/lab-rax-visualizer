@@ -19,6 +19,7 @@ export const STATUS_LABEL: Record<PrintStatus, string> = {
   print: 'Print',
   review: 'Review first',
   'source-only': 'Not a print source',
+  download: 'Download from source',
 }
 
 export const GROUP_LABEL: Record<PrintGroup, string> = {
@@ -32,8 +33,9 @@ export const GROUP_ORDER: PrintGroup[] = ['frame', 'shelves', 'accessories']
 export interface ManifestRow {
   /**
    * 1-based position among the parts that actually get printed. `null` for
-   * `source-only` rows, which are listed for completeness but never ticked off
-   * — numbering them would imply they belong on the print queue.
+   * rows that are not in the archive (`source-only`, `download`): they are
+   * listed so the build is complete on paper, but numbering them would imply
+   * you can tick them off against a file in the zip.
    */
   no: number | null
   /** Rack units this part occupies, e.g. "3U"; "—" for parts off the U grid. */
@@ -60,7 +62,7 @@ function sizeLabel(f: PrintFile): string {
 export function manifestRows(state: BuildState): ManifestRow[] {
   let printed = 0
   return printFiles(state).map((f) => ({
-    no: f.status === 'source-only' ? null : ++printed,
+    no: f.status === 'print' || f.status === 'review' ? ++printed : null,
     unit: f.u === undefined ? '—' : `${f.u}U`,
     part: f.part,
     file: f.file,
@@ -80,6 +82,8 @@ export interface ManifestTotals {
   files: number
   review: number
   skipped: number
+  /** Printed parts this app has no mesh for; get them from the model page. */
+  missing: number
   byGroup: Record<PrintGroup, number>
 }
 
@@ -89,9 +93,14 @@ export function manifestTotals(rows: ManifestRow[]): ManifestTotals {
   let files = 0
   let review = 0
   let skipped = 0
+  let missing = 0
   for (const r of rows) {
     if (r.status === 'source-only') {
       skipped++
+      continue
+    }
+    if (r.status === 'download') {
+      missing += r.qty
       continue
     }
     pieces += r.qty
@@ -99,7 +108,7 @@ export function manifestTotals(rows: ManifestRow[]): ManifestTotals {
     byGroup[r.group] += r.qty
     if (r.status === 'review') review++
   }
-  return { pieces, files, review, skipped, byGroup }
+  return { pieces, files, review, skipped, missing, byGroup }
 }
 
 /** Parts that are wider than a 256 mm bed — the one thing to know before slicing. */
@@ -127,10 +136,10 @@ export function manifestCsv(rows: ManifestRow[], state: BuildState): string {
     lines.push(
       [
         r.no ?? '',
-        r.status === 'source-only' ? '' : '☐',
+        r.no === null ? '' : '☐',
         r.unit,
         r.part,
-        r.file,
+        r.file || '—',
         r.size.replace(/ × /g, ' x '),
         r.qty,
         r.statusLabel,
@@ -160,11 +169,11 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
 
   const body = rows.map((r) => [
     r.no ?? '',
-    r.status === 'source-only' ? '' : '☐',
+    r.no === null ? '' : '☐',
     r.unit,
     GROUP_LABEL[r.group],
     r.part,
-    r.file,
+    r.file || '—',
     r.size,
     r.qty,
     r.statusLabel,
@@ -176,6 +185,7 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
     ['', '', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', ''],
     ['', '', '', '', 'Files in this build', '', '', totals.files, '', '', ''],
     ['', '', '', '', 'Needs review before slicing', '', '', totals.review, '', '', ''],
+    ['', '', '', '', 'Download separately (not in archive)', '', '', totals.missing, '', '', ''],
     ['', '', '', '', 'Listed but not printable', '', '', totals.skipped, '', '', ''],
   ]
 
@@ -224,6 +234,13 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
   // re-download the model instead of trusting a mesh that was passed around.
   const grouped = new Map<string, { source: PartSource; files: string[] }>()
   for (const r of rows) {
+    // A joinery row has no file in this build; it still belongs in the sheet,
+    // with an empty file list, so its model page stays one click away.
+    if (!r.file) {
+      const key = r.source.url ?? r.source.label
+      if (!grouped.has(key)) grouped.set(key, { source: r.source, files: [] })
+      continue
+    }
     const key = r.source.url ?? r.source.label
     const hit = grouped.get(key)
     if (hit) hit.files.push(r.file)
@@ -235,7 +252,7 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
       g.source.label,
       g.source.modelId ?? '',
       g.source.url ?? '',
-      g.files.join(', '),
+      g.files.length > 0 ? g.files.join(', ') : '— (no file in this build)',
       g.source.kind === 'makerworld'
         ? 'Page opened and matched by title, 2026-11-13'
         : g.source.kind === 'repo'
@@ -285,6 +302,7 @@ const STATUS_CLASS: Record<PrintStatus, string> = {
   print: 'ok',
   review: 'warn',
   'source-only': 'skip',
+  download: 'warn',
 }
 
 /**
@@ -298,7 +316,10 @@ const STATUS_CLASS: Record<PrintStatus, string> = {
  */
 export function printListHtml(rows: ManifestRow[], state: BuildState, generatedAt = new Date()): string {
   const totals = manifestTotals(rows)
-  const queue = rows.filter((r) => r.status !== 'source-only')
+  // Only rows whose file is in the archive go on the checklist; a row you
+  // cannot tick off against a file is noise in the middle of the print queue.
+  const queue = rows.filter((r) => r.status === 'print' || r.status === 'review')
+  const missing = rows.filter((r) => r.status === 'download')
   const excluded = rows.filter((r) => r.status === 'source-only')
   const over = oversizeRows(rows)
   const date = generatedAt.toISOString().slice(0, 10)
@@ -311,7 +332,7 @@ export function printListHtml(rows: ManifestRow[], state: BuildState, generatedA
           <td class="check"><input type="checkbox" aria-label="Printed ${escapeHtml(r.part)}"></td>
           <td class="unit">${escapeHtml(r.unit)}</td>
           <td class="part">${escapeHtml(r.part)}</td>
-          <td class="file"><code>${escapeHtml(r.file)}</code></td>
+          <td class="file"><code>${escapeHtml(r.file) || '—'}</code></td>
           <td class="size">${escapeHtml(r.size) || '—'}</td>
           <td class="qty">${r.qty}</td>
           <td class="status"><span class="pill ${STATUS_CLASS[r.status]}">${escapeHtml(r.statusLabel)}</span></td>
@@ -397,6 +418,40 @@ ${FRAME_HARDWARE.map((h) => `      <tr><td class="part">${escapeHtml(h.item)}</t
   </table>
 </section>`
 
+  // Rows the build needs but this app has no mesh for. Naming the quantity
+  // matters: a 12U rack needs eight joiners and nothing else on this sheet
+  // would tell you that, which is how a build ends up short one joint.
+  const missingTable =
+    missing.length > 0
+      ? `<section class="missing">
+  <h2>Printed, but not in this archive <span class="muted">· ${missing.reduce((n, r) => n + r.qty, 0)} pcs</span></h2>
+  <table>
+    <thead>
+      <tr>
+        <th class="unit">Unit</th>
+        <th class="part">Part</th>
+        <th class="qty">Qty</th>
+        <th class="src">Source</th>
+        <th class="note">Why it is not in here</th>
+      </tr>
+    </thead>
+    <tbody>
+${missing
+  .map(
+    (r) => `      <tr class="warn">
+        <td class="unit">${escapeHtml(r.unit)}</td>
+        <td class="part">${escapeHtml(r.part)}</td>
+        <td class="qty">${r.qty}</td>
+        <td class="src">${sourceHtml(r.source)}</td>
+        <td class="note">${escapeHtml(r.note) || '—'}</td>
+      </tr>`,
+  )
+  .join('\n')}
+    </tbody>
+  </table>
+</section>`
+      : ''
+
   const excludedTable =
     excluded.length > 0
       ? `<section class="excluded">
@@ -463,7 +518,7 @@ ${excluded
   td.note, td.notes { color:var(--muted); font-size:12.5px; }
   td.src { width:64px; font-size:12px; font-variant-numeric:tabular-nums; }
   td.src a, .sources a { color:#1a4d8f; text-decoration:none; border-bottom:1px dotted currentColor; }
-  .sources, .hardware { margin-top:26px; }
+  .sources, .hardware, .missing { margin-top:26px; }
   .sources table tbody tr td, .hardware table tbody tr td { padding:5px 8px; }
   .hardware .part { width:auto; font-weight:500; }
   .hardware .note, .sources .note { width:auto; }
@@ -474,8 +529,10 @@ ${excluded
   tr.skip td { color:var(--muted); }
   tr.skip td.part { font-weight:500; }
   .muted { color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; }
-  .excluded { margin-top:26px; break-inside: auto; }
-  .excluded table tbody tr td { padding:5px 8px; }
+  .excluded, .missing { margin-top:26px; break-inside: auto; }
+  .excluded table tbody tr td, .missing table tbody tr td { padding:5px 8px; }
+  .missing .src a { color:#1a4d8f; text-decoration:none; border-bottom:1px dotted currentColor; }
+  .missing .part { width:auto; }
   footer { margin-top:22px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); padding-top:12px; }
   footer p { margin:4px 0; }
   .warnbox { margin:18px 0 0; border:1px solid var(--warn); color:var(--warn); border-radius:8px; padding:10px 14px; font-size:12.5px; }
@@ -496,7 +553,7 @@ ${excluded
     td.src { width:8%; font-size:9.5px; }
     td.file code { font-size:9.5px; }
     .card { border-color:#bbb; }
-    tbody tr, .excluded tr { break-inside: avoid; }
+    tbody tr, .excluded tr, .missing tr { break-inside: avoid; }
     .group-head { break-after: avoid; }
     a { color:inherit; text-decoration:none; }
   }
@@ -517,7 +574,7 @@ ${excluded
   <div class="card"><b>${totals.byGroup.frame}</b><span>frame</span></div>
   <div class="card"><b>${totals.byGroup.shelves}</b><span>shelves</span></div>
   <div class="card"><b>${totals.byGroup.accessories}</b><span>accessories</span></div>
-${totals.review > 0 ? `  <div class="card"><b>${totals.review}</b><span>need review</span></div>\n` : ''}</section>
+${totals.review > 0 ? `  <div class="card"><b>${totals.review}</b><span>need review</span></div>\n` : ''}${totals.missing > 0 ? `  <div class="card"><b>${totals.missing}</b><span>download separately</span></div>\n` : ''}</section>
 
 <table>
   <thead>
@@ -538,6 +595,7 @@ ${sections}
 </table>
 ${state.rackU > DESIGN_LIMIT_U ? `<div class="warnbox"><b>Design limit</b>${escapeHtml(DESIGN_LIMIT_NOTE)}</div>` : ''}
 ${over.length > 0 ? `<div class="warnbox"><b>Bed check</b>${over.map((r) => `${escapeHtml(r.part)} is ${escapeHtml(r.size)} mm`).join(' · ')} — wider than a 256 mm bed. Split the part or print it on a larger machine.</div>` : ''}
+${missingTable}
 ${excludedTable}
 ${sourcesSection}
 ${hardwareSection}

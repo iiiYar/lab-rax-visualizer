@@ -16,7 +16,8 @@ function modelUrl(file: string): string {
 
 /** Everything a maker needs to know before pressing "slice". */
 function readme(state: BuildState, files: PrintFile[]): string {
-  const printable = files.filter((f) => f.status !== 'source-only')
+  const printable = files.filter((f) => f.status === 'print' || f.status === 'review')
+  const missing = files.filter((f) => f.status === 'download')
   const skipped = files.filter((f) => f.status === 'source-only')
   const today = new Date().toISOString().slice(0, 10)
 
@@ -48,8 +49,19 @@ function readme(state: BuildState, files: PrintFile[]): string {
     '  - Sold/bought hardware is not in this archive. Only printed parts are.',
     '',
     `TOTALS: ${printable.reduce((n, f) => n + f.quantity, 0)} pieces to print across ` +
-      `${printable.length} files, ${skipped.length} listed but not printable.`,
+      `${printable.length} files, ${skipped.length} listed but not printable` +
+      (missing.length > 0
+        ? `, plus ${missing.reduce((n, f) => n + f.quantity, 0)} joiners to download.`
+        : '.'),
   ]
+
+  if (missing.length > 0) {
+    lines.push('', 'PRINTED BUT NOT INCLUDED (get these from the source page)')
+    for (const f of missing) {
+      lines.push(`  - ${f.part} ×${f.quantity}: ${f.source?.url ?? 'source not recorded'}`)
+      if (f.note) lines.push(`      ${f.note}`)
+    }
+  }
 
   if (skipped.length > 0) {
     lines.push('', 'LISTED BUT NOT INCLUDED (source is not printable)')
@@ -85,7 +97,9 @@ export async function buildStlBundle(
   onProgress?: (progress: BundleProgress) => void,
 ): Promise<{ blob: Blob; filename: string }> {
   const files = printFiles(state)
-  const printable = files.filter((f) => f.status !== 'source-only')
+  // `download` rows have no file in this repo by definition; only rows whose
+  // mesh we actually serve go into the zip.
+  const printable = files.filter((f) => (f.status === 'print' || f.status === 'review') && f.file)
 
   if (printable.length === 0) {
     throw new Error('This build has no printable parts.')

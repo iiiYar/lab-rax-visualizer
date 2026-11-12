@@ -1,6 +1,6 @@
 import type { BuildState, DeviceType, PartType, ShelfType } from './types'
 import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel, shelfTypeU } from './constants'
-import { sourceFor, type PartSource } from './sources'
+import { LAB_RAX_SOURCES, sourceFor, type PartSource } from './sources'
 import {
   DEVICE_TYPE_PARTS,
   MODEL_FILES,
@@ -17,8 +17,12 @@ import {
  * - `source-only` listed for completeness; the file here is *not* a print source
  *                 (a bought device's visualisation mesh, a squashed viz mesh, or
  *                 a panel that is cut from acrylic rather than printed).
+ * - `download`    required by the build, printed in the real thing, but this app
+ *                 ships no mesh for it — the row points at the source page. It is
+ *                 never written into the archive, so nobody hunts for a file that
+ *                 was never there.
  */
-export type PrintStatus = 'print' | 'review' | 'source-only'
+export type PrintStatus = 'print' | 'review' | 'source-only' | 'download'
 
 export type PrintGroup = 'frame' | 'shelves' | 'accessories'
 
@@ -242,6 +246,23 @@ const DEVICE_NOTES: Partial<Record<DeviceType, string>> = {
 }
 
 /**
+ * Rails and panels are stacked from 1–5U segments, so every rack taller than 5U
+ * has at least one joint, and the designer's joiner is a printed part: one per
+ * post, four posts. 8U stacks 5+3 → 4 joiners; 12U stacks 5+5+2 → 8.
+ */
+export function joinerCount(rackU: number): number {
+  return (decomposeIntoSegments(rackU).length - 1) * (BASE_QUANTITIES.verticalRails ?? 4)
+}
+
+/**
+ * The post joiner is the one frame part with no mesh in this repo — it lives in
+ * the designer's extension pack (model 1304384) and the viewer never draws it.
+ * Empty until a mesh lands in `public/models-3d`; the manifest then names the
+ * model page instead of a filename that does not exist.
+ */
+const JOINER_FILE = ''
+
+/**
  * Every file the current build references, flattened for the manifest and the
  * STL bundle. Quantities are summed per file, so an 8U build shows
  * `rail-height-5u.stl ×4` and `rail-height-3u.stl ×4`.
@@ -273,6 +294,22 @@ export function printFiles(state: BuildState): PrintFile[] {
   for (const part of ['verticalRails', 'heroEdge', 'widthRails', 'horizontalEdges', 'sidePanels', 'topPanel', 'bottomPanel', 'handles', 'feet'] as PartType[]) {
     if (isOptional(part) && !state.toggles[part]) continue
     for (const f of printFilesForPart(state, part)) add(f)
+  }
+
+  const joiners = joinerCount(state.rackU)
+  if (joiners > 0) {
+    const joints = decomposeIntoSegments(state.rackU).length - 1
+    add({
+      file: JOINER_FILE,
+      part: 'Post joiner',
+      quantity: joiners,
+      status: 'download',
+      group: 'frame',
+      source: LAB_RAX_SOURCES.joiners,
+      note:
+        `${joints === 1 ? 'One joint' : `${joints} joints`} above 5U, one joiner per post. ` +
+        'Part of the extension pack, not in this archive — download it from the source link.',
+    })
   }
 
   for (const shelf of state.shelves) {
@@ -314,7 +351,7 @@ export function printFiles(state: BuildState): PrintFile[] {
   // like the rack itself; parts outside the U grid (feet, panels, devices) go
   // last within their group.
   const order: Record<PrintGroup, number> = { frame: 0, shelves: 1, accessories: 2 }
-  const statusOrder: Record<PrintStatus, number> = { print: 0, review: 1, 'source-only': 2 }
+  const statusOrder: Record<PrintStatus, number> = { print: 0, review: 1, download: 2, 'source-only': 3 }
   const uKey = (f: PrintFile) => (f.u === undefined ? Number.POSITIVE_INFINITY : f.u)
   return [...merged.values()].sort(
     (a, b) =>

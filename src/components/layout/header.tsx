@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useBuildStore } from '../../store/use-build-store'
 import { totalPartCount } from '../../domain/parts-list'
+import { DESIGN_LIMIT_NOTE, DESIGN_LIMIT_U } from '../../domain/sources'
 import { exportCsv } from '../../export/export-csv'
 import { exportXlsx } from '../../export/export-xlsx'
 import { exportStlBundle } from '../../export/export-stl-bundle'
@@ -82,6 +83,17 @@ export function Header() {
         <span>
           Parts <span className="font-semibold text-white/80">{count}</span>
         </span>
+        {/* Lab Rax tops out at 10U by design; past that the second joint, not
+            the planner, becomes the weak point. Say it where the size is shown,
+            not only in the exported sheet. */}
+        {rackU > DESIGN_LIMIT_U && (
+          <span
+            title={DESIGN_LIMIT_NOTE}
+            className="rounded border border-amber-400/40 bg-amber-400/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-300"
+          >
+            Past the {DESIGN_LIMIT_U}U design limit
+          </span>
+        )}
       </div>
 
       <div className="hidden items-center gap-2 sm:flex">

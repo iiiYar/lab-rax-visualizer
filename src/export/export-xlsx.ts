@@ -55,16 +55,17 @@ export function exportXlsx(state: BuildState): void {
     ['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Note', 'Download'],
     ...files.map((f) => [
       f.no ?? '',
-      '☐',
+      f.no === null ? '' : '☐',
       f.unit,
       f.part,
-      f.file,
+      f.file || '—',
       f.size,
       f.qty,
       STATUS_LABEL[f.status],
       f.source.url ?? sourceCellText(f.source),
       f.note,
-      modelUrl(f.file),
+      // A joinery row has no file here; linking it to models-3d/ would 404.
+      f.file ? modelUrl(f.file) : '',
     ]),
   ]
 
@@ -93,6 +94,7 @@ export function exportXlsx(state: BuildState): void {
   // Turn the Download column into real hyperlinks (SheetJS stores them beside
   // the cell value; Excel renders the cell as clickable).
   for (let i = 0; i < files.length; i++) {
+    if (!files[i].file) continue
     const ref = XLSX.utils.encode_cell({ r: i + 1, c: 10 })
     const cell = wsFiles[ref]
     if (cell) cell.l = { Target: modelUrl(files[i].file), Tooltip: `Download ${files[i].file}` }

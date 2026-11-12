@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { MAX_U, MIN_U } from '../../domain/constants'
 import { totalPartCount } from '../../domain/parts-list'
+import { DESIGN_LIMIT_NOTE, DESIGN_LIMIT_U } from '../../domain/sources'
 import { useBuildStore } from '../../store/use-build-store'
 import { AdPanel } from './ad-panel'
 import { ControlsPanel } from './controls-panel'
@@ -156,7 +157,16 @@ export function ControlsSheet() {
               +
             </button>
           </div>
-          <span className="text-xs text-white/50">{count} parts</span>
+          <span className="text-right text-xs text-white/50">
+            {count} parts
+            {/* Same limit as the header chip — the sheet is the only height
+                control on a touch screen, so the warning has to live here too. */}
+            {rackU > DESIGN_LIMIT_U && (
+              <span className="block text-[11px] text-amber-300" title={DESIGN_LIMIT_NOTE}>
+                past {DESIGN_LIMIT_U}U limit
+              </span>
+            )}
+          </span>
         </div>
       )}
 
