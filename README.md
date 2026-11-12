@@ -209,7 +209,7 @@ actually print for this build". Every part maps to one or more files in
 | `print`       | Closed, manifold mesh — slice and print as-is                        |
 | `review`      | Printable shell but the file also carries open detail shells; repair or delete them first |
 | `source-only` | Not a print file: acrylic parts cut from sheet, meshes used only for visualization, and bought hardware |
-| `download`    | Printed part with no mesh here — the row gives the count and the model page, and stays out of the zip |
+| `download`    | Printed part with no mesh here — the row gives the count and the model page, and stays out of the zip. No part uses it today; it is kept for the next file that ships without a mesh |
 
 That status drives three places:
 
@@ -234,6 +234,13 @@ That status drives three places:
   what turns "this is the designer's rail" from a label into something a maker
   can verify: download the model, hash it, compare.
 
+`REFERENCE_HASHES` in `domain/sources.ts` goes one step further for the files
+whose original download we actually hold: the bundle hashes what it is about to
+zip and compares. A match is listed in `PRINT-ME.txt` under **Checked against
+the source**; a mismatch prints a warning above it and names both hashes. Only
+files with a real reference copy are listed — hashing our own file and calling
+it provenance would prove nothing.
+
 ### Where the model files come from
 
 `src/domain/sources.ts` maps each file in `public/models-3d/` to where it came
@@ -242,6 +249,7 @@ from, because a planner that hands out STLs without a trail is a liability:
 | Kind          | Meaning                                                        |
 |---------------|----------------------------------------------------------------|
 | `makerworld`  | A specific MakerWorld model page, with the id in the map        |
+| `supplied`    | A download from the owner, pinned by SHA-256 — no page claimed   |
 | `repo`        | Built by `tools/make-*.py` from measurements — visualization only |
 | `bought`      | Bought hardware; the mesh only shows it in 3D, nothing to print |
 | `unrecorded`  | Origin was never written down — flagged on purpose, never invented |
@@ -257,6 +265,10 @@ and matched by title on 2026-11-13. Header pages in that table:
 | Open shelf 1U / keystone panel / 5×40mm fan panel | 1297318 / 1293816 / 1293794 |
 | 2U 7× SBC holder | [1293865](https://makerworld.com/en/models/1293865) |
 | 8-bay HDD enclosure | [2503273](https://makerworld.com/en/models/2503273) |
+| Blank cover plates 1/2U–2U | [1385541](https://makerworld.com/en/models/1385541) |
+| 2U two-80mm fan holder | [1385530](https://makerworld.com/en/models/1385530) |
+| 1U shelf with slots (remix) | [1357259](https://makerworld.com/en/models/1357259) |
+| Lenovo Tiny mount (remix) | [2213343](https://makerworld.com/en/models/2213343) |
 
 One design limit is stated in the checklist rather than silently ignored: Lab
 Rax is designed to 10U. Stacking a second joint past that is physically
@@ -266,7 +278,7 @@ The app says it too: past 10U the header shows a `Past the 10U design limit`
 chip (and the touch controls sheet shows the same line), so the warning is not
 buried in an export nobody opened yet.
 
-### Joinery: the part that is printed but not shipped
+### Joinery: the part the 5U kit does not include
 
 Posts and panels only come in 1–5U segments, so every rack taller than 5U has a
 joint, and each joint takes one printed **post joiner per post** — four per
@@ -276,13 +288,17 @@ joint. That row is derived, not typed in:
 joinerCount(rackU) = (segments(rackU).length - 1) * 4   // 8U → 4, 12U → 8
 ```
 
-The app has no mesh for it (it lives in the designer's extension pack), so the
-row carries the `download` status: it appears in the manifest, the CSV, the
-workbook and the checklist under **Printed, but not in this archive**, with the
-count and the model page — and it is deliberately left out of the zip, because
-pointing at a filename that is not there is worse than saying so. Drop a mesh
-into `public/models-3d/` and set `JOINER_FILE` in `domain/print-files.ts` to
-turn it into a normal `print` row.
+The joiner is not in the 5U kit — the designer ships it in the extension pack
+(1304384) — so it was the one frame part missing from this repo. It is now
+`public/models-3d/post-joiner.stl`, taken from that pack and never redrawn: a
+joiner drawn from a description is a joiner that does not fit the posts. The
+pack offers a brass-insert variant (shipped here, matching the rest of the
+frame) and a bolted 3MF for the bolted kit.
+
+Status falls back to `download` if `JOINER_FILE` is ever emptied again: the row
+still appears in the manifest, CSV, workbook and checklist under **Printed, but
+not in this archive** with the count and the model page, and stays out of the
+zip, because pointing at a filename that is not there is worse than saying so.
 
 The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
 every file in `public/models-3d/`. If you replace a model, re-measure it:

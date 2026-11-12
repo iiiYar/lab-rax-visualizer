@@ -20,7 +20,9 @@ import {
  * - `download`    required by the build, printed in the real thing, but this app
  *                 ships no mesh for it — the row points at the source page. It is
  *                 never written into the archive, so nobody hunts for a file that
- *                 was never there.
+ *                 was never there. No part uses it since the joiner mesh landed;
+ *                 it stays as the honest option for the next part that ships
+ *                 without one, instead of a placeholder mesh.
  */
 export type PrintStatus = 'print' | 'review' | 'source-only' | 'download'
 
@@ -67,6 +69,7 @@ const FILE_SIZES: Record<string, [number, number, number]> = {
   'rail-width.3mf': [282.25, 54.85, 54.85],
   'rail-depth.stl': [30, 170, 35],
   'panel-top-bottom.stl': [228.05, 171.5, 3],
+  'post-joiner.stl': [23.85, 39.7, 7],
   'foot.3mf': [26, 26, 12],
   'handle.3mf': [20, 170, 32.5],
   // shelves
@@ -255,12 +258,17 @@ export function joinerCount(rackU: number): number {
 }
 
 /**
- * The post joiner is the one frame part with no mesh in this repo — it lives in
- * the designer's extension pack (model 1304384) and the viewer never draws it.
- * Empty until a mesh lands in `public/models-3d`; the manifest then names the
- * model page instead of a filename that does not exist.
+ * The joiner ships in the designer's extension pack (model 1304384) rather than
+ * in the 5U kit, so it was the one frame part missing from this repo. It is now
+ * in `public/models-3d`, taken from that pack — never redrawn, because a joiner
+ * drawn from a description is a joiner that does not fit the posts.
+ *
+ * The pack carries two variants: `Brass Insert Post Joiner.stl`, which matches
+ * the heat-set inserts the rest of the frame uses, and a bolted 3MF for the
+ * bolted kit. This build is the insert one; the bolted variant is on the model
+ * page for anyone running `1464819`.
  */
-const JOINER_FILE = ''
+const JOINER_FILE = 'post-joiner.stl'
 
 /**
  * Every file the current build references, flattened for the manifest and the
@@ -303,12 +311,12 @@ export function printFiles(state: BuildState): PrintFile[] {
       file: JOINER_FILE,
       part: 'Post joiner',
       quantity: joiners,
-      status: 'download',
+      status: 'print',
       group: 'frame',
       source: LAB_RAX_SOURCES.joiners,
       note:
-        `${joints === 1 ? 'One joint' : `${joints} joints`} above 5U, one joiner per post. ` +
-        'Part of the extension pack, not in this archive — download it from the source link.',
+        `${joints === 1 ? 'One joint' : `${joints} joints`} above 5U, one joiner per post — ` +
+        'four posts per joint. Brass-insert variant, from the extension pack.',
     })
   }
 

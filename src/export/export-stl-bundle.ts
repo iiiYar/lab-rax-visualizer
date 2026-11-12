@@ -2,6 +2,7 @@ import type { BuildState } from '../domain/types'
 import { printFiles, type PrintFile } from '../domain/print-files'
 import { download } from './download'
 import { manifestCsv, manifestRows, manifestXlsx, printListHtml } from './print-manifest'
+import { REFERENCE_HASHES } from '../domain/sources'
 import { sha256Hex } from './sha256'
 
 export interface BundleProgress {
@@ -16,7 +17,13 @@ function modelUrl(file: string): string {
 }
 
 /** Everything a maker needs to know before pressing "slice". */
-function readme(state: BuildState, files: PrintFile[]): string {
+/** Result of checking shipped bytes against a recorded reference hash. */
+interface Provenance {
+  verified: string[]
+  mismatches: string[]
+}
+
+function readme(state: BuildState, files: PrintFile[], provenance: Provenance): string {
   const printable = files.filter((f) => f.status === 'print' || f.status === 'review')
   const missing = files.filter((f) => f.status === 'download')
   const skipped = files.filter((f) => f.status === 'source-only')
@@ -72,6 +79,21 @@ function readme(state: BuildState, files: PrintFile[]): string {
     for (const f of skipped) lines.push(`  - ${f.part} (${f.file}): ${f.note ?? 'no printable source in this repo'}`)
   }
 
+  // Provenance comes last but reads first when something is wrong: a mismatched
+  // mesh means the archive is not what the source says it is.
+  if (provenance.mismatches.length > 0) {
+    lines.push(
+      '',
+      'WARNING — FILES DO NOT MATCH THEIR RECORDED SOURCE HASH',
+      '  Do not print these until the difference is explained:',
+      ...provenance.mismatches.map((m) => `  - ${m}`),
+    )
+  }
+  if (provenance.verified.length > 0) {
+    lines.push('', 'CHECKED AGAINST THE SOURCE')
+    for (const v of provenance.verified) lines.push(`  - ${v}`)
+  }
+
   lines.push(
     '',
     'SOURCES',
@@ -117,6 +139,8 @@ export async function buildStlBundle(
   if (!root) throw new Error('Could not create the archive root.')
 
   const sums: string[] = []
+  const mismatches: string[] = []
+  const verified: string[] = []
   for (let i = 0; i < printable.length; i++) {
     const entry = printable[i]
     onProgress?.({ done: i, total: printable.length, file: entry.file })
@@ -125,10 +149,19 @@ export async function buildStlBundle(
     if (!folder) throw new Error(`Could not create the ${entry.group} folder.`)
     const bytes = await fetchFile(entry.file)
     folder.file(entry.file, bytes)
-    sums.push(`${sha256Hex(bytes)}  ${entry.group}/${entry.file}`)
+    const digest = sha256Hex(bytes)
+    sums.push(`${digest}  ${entry.group}/${entry.file}`)
+
+    // A row that claims a source is only as good as the bytes behind it. When a
+    // reference hash exists, check it here rather than trusting the filename.
+    const ref = REFERENCE_HASHES[entry.file]
+    if (ref) {
+      if (ref.sha256 === digest) verified.push(`${entry.file} — ${ref.origin}`)
+      else mismatches.push(`${entry.file} — expected ${ref.sha256.slice(0, 12)}… from ${ref.origin}, got ${digest.slice(0, 12)}…`)
+    }
   }
 
-  root.file('PRINT-ME.txt', readme(state, files))
+  root.file('PRINT-ME.txt', readme(state, files, { verified, mismatches }))
   // Release-style checksums: the same line format `sha256sum -c` reads.
   root.file('SHA256SUMS.txt', `${sums.join('\n')}\n`)
   // One ordered row set, three renderings — see print-manifest.ts.

@@ -13,11 +13,14 @@
  *   2026-11-13 — the ids are not guessed from search results.
  * - `repo` for meshes built by `tools/make-*.py`. Those are visualisation
  *   geometry: they are not print sources and must stay `source-only`.
+ * - `supplied` when the file arrived as a download from the owner rather than
+ *   from a page we opened. The bytes are verified by hash; the page is not
+ *   claimed, because a page we never saw is not a source.
  * - `unrecorded` when the origin was never written down. Do not invent a link
  *   to fill the gap; the manifest shows it as unverified on purpose.
  */
 
-export type SourceKind = 'makerworld' | 'repo' | 'bought' | 'unrecorded'
+export type SourceKind = 'makerworld' | 'supplied' | 'repo' | 'bought' | 'unrecorded'
 
 export interface PartSource {
   kind: SourceKind
@@ -50,6 +53,13 @@ export const ACCESSORY_SOURCES: Record<string, PartSource> = {
   'shelf-plate-keystone-1u.stl': mw('1293816', '12-port keystone panel'),
   'shelf-plate-40mm-fan-1u.3mf': mw('1293794', '1U 5×40mm fan panel'),
   'shelf-sbc-7-2u.stl': mw('1293865', '2U 7× SBC holder'),
+  'plate-1u.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
+  'plate-2u.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
+  'plate-halfu.stl': mw('1385541', 'Blank cover plates 1/2U, 1U, 2U'),
+  'shelf-plate-80mm-fan-2u.stl': mw('1385530', '2U two-80mm fan holder'),
+  // remixes that live on their own pages, not on the designer's profile
+  'shelf-slotted-1u.stl': mw('1357259', 'Lab Rax 1U shelf with slots'),
+  'shelf-tiny-rack-left-keystone.stl': mw('2213343', 'Lab Rax mount for Lenovo Tiny'),
 }
 
 /** Built by `tools/make-*.py` from measurements — never a print source. */
@@ -68,6 +78,13 @@ const UNRECORDED: PartSource = {
   kind: 'unrecorded',
   label: 'Not recorded',
 }
+
+/**
+ * Files that arrived as a download from the owner. Their bytes are pinned by
+ * hash below, so "this is the file he sent" is checkable even though no model
+ * page is claimed for them.
+ */
+const supplied = (label: string): PartSource => ({ kind: 'supplied', label })
 
 export const FILE_SOURCES: Record<string, PartSource> = {
   // frame — the 5U kit holds the horizontal pieces, handles, feet and panels
@@ -88,6 +105,8 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'panel-side-3u.stl': LAB_RAX_SOURCES.postsPanels,
   'panel-side-4u.stl': LAB_RAX_SOURCES.postsPanels,
   'panel-side-5u.stl': LAB_RAX_SOURCES.postsPanels,
+  // the joiner is not in the 5U kit: the designer sells it in the extension pack
+  'post-joiner.stl': LAB_RAX_SOURCES.joiners,
   // accessories
   ...ACCESSORY_SOURCES,
   'shelf-hdd-8bay-3u.stl': mw('2503273', '8-bay HDD enclosure'),
@@ -107,15 +126,40 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'device-minitx-motherboard.stl': BOUGHT,
   'device-minitx-pcie-card.stl': BOUGHT,
   'device-minitx-power-button.stl': BOUGHT,
-  // brought in from somewhere but the reference was never kept
-  'plate-1u.stl': UNRECORDED,
-  'plate-2u.stl': UNRECORDED,
-  'plate-halfu.stl': UNRECORDED,
-  'shelf-slotted-1u.stl': UNRECORDED,
-  'shelf-plate-80mm-fan-2u.stl': UNRECORDED,
-  'shelf-tiny-rack-left-keystone.stl': UNRECORDED,
-  'shelf-minitx-2u.stl': UNRECORDED,
-  'shelf-minitx-gpu-3u.stl': UNRECORDED,
+  // nothing left unrecorded: the eight files that were in this block now point
+  // at their page (six) or at a supplied copy pinned by hash (the two Mini ITX
+  // shelves), so a missing source is no longer expected here
+  'shelf-minitx-2u.stl': supplied('Supplied by the owner — Mini ITX shelf'),
+  'shelf-minitx-gpu-3u.stl': supplied('Supplied by the owner — Mini ITX GPU shelf'),
+}
+
+/**
+ * SHA-256 of a file as it arrived from its source, kept so the archive can
+ * prove what it ships. A mesh that was rescaled or rebuilt after the fact will
+ * not match, and the bundle says so instead of quietly shipping it.
+ *
+ * Only files whose reference copy we actually hold are listed. For everything
+ * else the honest answer is "no hash on record", not a hash of our own file.
+ */
+export interface FileHash {
+  sha256: string
+  /** Where that reference copy came from, so the claim has a provenance too. */
+  origin: string
+}
+
+export const REFERENCE_HASHES: Record<string, FileHash> = {
+  'post-joiner.stl': {
+    sha256: 'e1d71193a9601f2415d0df0e7bc33d8f0a6b6ac790d163c22460d3ced8a797fc',
+    origin: 'Brass Insert Post Joiner.stl, extension pack 1304384',
+  },
+  'shelf-minitx-2u.stl': {
+    sha256: '0e74ad0f00fd9d9bff3e97aa49a02762bbf2d467ed952dc2284fc3264e810037',
+    origin: 'Mainboard_Mini_ITX.stl, supplied 2026-11-13',
+  },
+  'shelf-minitx-gpu-3u.stl': {
+    sha256: 'bc853fa86f8b9df0045869e070babf3ae4969d33ef96471e72f77eb339f4a593',
+    origin: 'MINI_ITX_GPU_FAN_16mm_Button.stl, supplied 2026-11-13',
+  },
 }
 
 export function sourceFor(file: string): PartSource {

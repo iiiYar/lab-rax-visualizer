@@ -255,7 +255,9 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
       g.files.length > 0 ? g.files.join(', ') : '— (no file in this build)',
       g.source.kind === 'makerworld'
         ? 'Page opened and matched by title, 2026-11-13'
-        : g.source.kind === 'repo'
+        : g.source.kind === 'supplied'
+          ? 'Supplied copy pinned by SHA-256 — model page not recorded'
+          : g.source.kind === 'repo'
           ? 'Generated here — visualization only, do not print'
           : g.source.kind === 'bought'
             ? 'Bought part — mesh is a visualization, nothing to print'
@@ -273,6 +275,7 @@ function sourceHtml(src: PartSource): string {
   if (src.kind === 'makerworld' && src.url) {
     return `<a href="${escapeHtml(src.url)}" title="${escapeHtml(src.label)}">${escapeHtml(src.modelId ?? 'link')}</a>`
   }
+  if (src.kind === 'supplied') return '<span class="muted">supplied</span>'
   if (src.kind === 'repo') return '<span class="muted">repo viz</span>'
   if (src.kind === 'bought') return '<span class="muted">bought</span>'
   return '<span class="muted">?</span>'
@@ -285,6 +288,7 @@ function sourceHtml(src: PartSource): string {
  */
 export function sourceCellText(src: PartSource): string {
   if (src.kind === 'makerworld') return src.modelId ?? src.label
+  if (src.kind === 'supplied') return 'supplied file'
   if (src.kind === 'repo') return 'this repo (viz)'
   if (src.kind === 'bought') return 'bought'
   return 'not recorded'
@@ -365,10 +369,16 @@ ${rowsHtml(groupRows)}
     else bySource.set(key, { s: r.source, parts: new Set([r.part]) })
   }
   const makerworldCount = Array.from(bySource.values()).filter((v) => v.s.kind === 'makerworld').length
+  const suppliedCount = Array.from(bySource.values()).filter((v) => v.s.kind === 'supplied').length
   const unrecorded = Array.from(bySource.values()).filter((v) => v.s.kind === 'unrecorded')
+  const sourceCounts = [
+    `${makerworldCount} MakerWorld model${makerworldCount === 1 ? '' : 's'}`,
+    ...(suppliedCount > 0 ? [`${suppliedCount} supplied file${suppliedCount === 1 ? '' : 's'}`] : []),
+    ...(unrecorded.length > 0 ? [`${unrecorded.length} with no recorded origin`] : []),
+  ].join(' · ')
 
   const sourcesSection = `<section class="sources">
-  <h2>Where these files come from <span class="muted">· ${makerworldCount} MakerWorld model${makerworldCount === 1 ? '' : 's'}${unrecorded.length > 0 ? ` · ${unrecorded.length} with no recorded origin` : ''}</span></h2>
+  <h2>Where these files come from <span class="muted">· ${sourceCounts}</span></h2>
   <table>
     <thead>
       <tr>
@@ -388,7 +398,7 @@ ${Array.from(bySource.values())
         <td class="note">${escapeHtml(partsList)}</td>
       </tr>`
     }
-    if (src.kind === 'repo' || src.kind === 'bought') {
+    if (src.kind === 'repo' || src.kind === 'bought' || src.kind === 'supplied') {
       return `      <tr>
         <td class="part">${escapeHtml(src.label)}</td>
         <td class="src">—</td>
