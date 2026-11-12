@@ -2,6 +2,7 @@ import type { BuildState } from '../domain/types'
 import { printFiles, type PrintFile } from '../domain/print-files'
 import { download } from './download'
 import { manifestCsv, manifestRows, manifestXlsx, printListHtml } from './print-manifest'
+import { sha256Hex } from './sha256'
 
 export interface BundleProgress {
   /** Files already added to the archive. */
@@ -12,20 +13,6 @@ export interface BundleProgress {
 
 function modelUrl(file: string): string {
   return new URL(`models-3d/${file}`, document.baseURI).href
-}
-
-/**
- * Lower-case hex SHA-256 of one file's bytes.
- *
- * The archive claims each file comes from a named model page; a hash is what
- * makes that claim checkable after the fact — download the model yourself,
- * hash it, compare. Without it "this is the designer's rail" is only a label.
- */
-async function sha256(bytes: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('')
 }
 
 /** Everything a maker needs to know before pressing "slice". */
@@ -138,7 +125,7 @@ export async function buildStlBundle(
     if (!folder) throw new Error(`Could not create the ${entry.group} folder.`)
     const bytes = await fetchFile(entry.file)
     folder.file(entry.file, bytes)
-    sums.push(`${await sha256(bytes)}  ${entry.group}/${entry.file}`)
+    sums.push(`${sha256Hex(bytes)}  ${entry.group}/${entry.file}`)
   }
 
   root.file('PRINT-ME.txt', readme(state, files))
