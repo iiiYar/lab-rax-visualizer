@@ -17,7 +17,7 @@ export function exportCsv(state: BuildState): void {
       [
         '☐', // checkbox glyph (CSV has no real form controls)
         r.part,
-        r.files.join(' | ') || '—',
+        r.files.join(' | ') || (r.sourceUrl ? `Download from source: ${r.sourceUrl}` : '—'),
         r.color,
         r.pattern,
         r.solid,

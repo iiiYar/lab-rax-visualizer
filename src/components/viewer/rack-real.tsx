@@ -54,10 +54,11 @@ export function RackReal() {
   // frame next to the joint.
   //
   // Plate, measured on post-joiner.stl: 23.85 × 39.7 × 7 (23.70 across once the
-  // edge chamfer is taken off) with two Ø3.2 holes 19.96 apart and Ø10.9 × 2 mm
-  // counterbores on one face. 39.7 = 2 × 19.85 fills the two 20 mm sockets and
-  // 23.85 slides into the 24 mm width, so the bolts — one per segment — land
-  // 10 mm either side of the seam and the joint is a press fit, not a guess.
+  // edge chamfer is taken off) with two Ø6.4 (M6 clearance) holes 20 mm apart
+  // and Ø10.9 × 2 mm counterbores on one face. 39.7 = 2 × 19.85 fills the two
+  // 20 mm sockets and 23.85 slides into the 24 mm width, so the bolts — one per
+  // segment — land 10 mm either side of the seam and the joint is a press fit,
+  // not a guess.
   //
   // +90° about Y turns the plate's 7 mm thickness across the post's width and
   // leaves its counterbored face on local +X: the open side of the socket, which

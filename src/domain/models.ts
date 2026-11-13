@@ -21,6 +21,16 @@ export function decomposeIntoSegments(u: number): number[] {
   return segments
 }
 
+/**
+ * Printed post joiners for a rack: one per post at every joint. Rails and
+ * panels stack from 1–5U segments, so a rack taller than 5U has
+ * `segments - 1` joints. Shared by the print files and the hardware list so
+ * the two counts cannot drift apart.
+ */
+export function joinerCountFor(rackU: number, posts: number): number {
+  return (decomposeIntoSegments(rackU).length - 1) * posts
+}
+
 export const VERTICAL_RAIL_FILES: Record<number, string> = {
   1: 'rail-height-1u.stl',
   2: 'rail-height-2u.stl',
@@ -42,7 +52,7 @@ export const MODEL_FILES = {
   railHorizontalDepth: 'rail-depth.stl',
   panelTopBottom: 'panel-top-bottom.stl',
   /** The 5U kit's real top cover: same footprint as the slab, vented with the
-   * fan openings. The slab is only a cutting template, so the two are not
+   * fan openings. The slab is only a flat stand-in drawn for the viewer, so the two are not
    * interchangeable in the print list even though they look alike at a glance. */
   panelTopBottomFan: 'panel-top-bottom-fan.stl',
   foot: 'foot.3mf',
@@ -207,7 +217,8 @@ export const DEVICE_EXTRA_ROT_X = Math.PI / 2
 
 // --- Measured constants (from inspecting the actual files) -------------------
 // Rail-height segments are exact U*44.45mm with no lip; side panels are
-// U*44.45 + a 5.9mm interlocking lip.
+// U*44.45 + a 5.9mm interlocking lip. The panel numbers were measured on the
+// stand-in panel meshes in this app, not on the designer's panel files.
 export const U_MM = 44.45
 export const SIDE_PANEL_LIP_MM = 5.9
 

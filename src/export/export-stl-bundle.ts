@@ -43,10 +43,10 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
     `Rack: ${state.rackU}U · ${printable.reduce((n, f) => n + f.quantity, 0)} printed parts · ${today}`,
     '',
     "WHAT'S IN HERE",
-    '  frame/       structural parts: height rails, width/depth rails, side and',
-    '               top/bottom panels, feet, handles',
+    '  frame/       structural parts: height rails, width/depth rails, post joiners,',
+    '               the vented top cover, feet, handles',
     '  shelves/     one file per shelf type in this build',
-    '  accessories/ printed add-ons (HDD caddy handles, power buttons)',
+    '  accessories/ printed add-ons (HDD caddy handles)',
     '',
     'THE PRINT LIST',
     '  print-list.html  open this first — the checklist, grouped frame / shelves /',
@@ -61,9 +61,9 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
     '',
     'PRINT NOTES',
     '  - Binary STL/3MF, units are millimetres. Do not scale when importing.',
-    '  - Measured sizes: width rails 282 x 55 mm, shelves and side panels about',
-    '    254 mm wide. A 256 x 256 mm bed fits the shelves but not the width',
-    '    rails — check your bed before slicing, and split the rail if needed.',
+    '  - Measured sizes: width rails 282 x 55 mm; shelves about 254 mm wide.',
+    '    A 256 x 256 mm bed fits the shelves but not the width rails — check',
+    '    your bed before slicing, and split the rail if needed.',
     '  - "Review first" rows have open shells in the mesh; run a manifold repair',
     '    (slicer "fix model" / Make Manifold) before slicing.',
     '  - Sold/bought hardware is not in this archive. Only printed parts are.',
@@ -71,7 +71,7 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
     `TOTALS: ${printable.reduce((n, f) => n + f.quantity, 0)} pieces to print across ` +
       `${printable.length} files, ${skipped.length} listed but not printable` +
       (missing.length > 0
-        ? `, plus ${missing.reduce((n, f) => n + f.quantity, 0)} joiners to download.`
+        ? `, plus ${missing.reduce((n, f) => n + f.quantity, 0)} parts to download.`
         : '.'),
   ]
 
@@ -137,8 +137,8 @@ export async function buildStlBundle(
     })
 
   const files = printFiles(state)
-  // `download` rows have no file in this repo by definition; only rows whose
-  // mesh we actually serve go into the zip.
+  // `download` rows are never zipped: whatever mesh this repo has for them is a
+  // stand-in, so only rows whose file we actually serve go into the archive.
   const printable = files.filter((f) => (f.status === 'print' || f.status === 'review') && f.file)
 
   if (printable.length === 0) {

@@ -8,6 +8,7 @@ import {
   shelfTypeLabel,
 } from './constants'
 import { DEVICE_TYPE_PARTS, SHELF_TYPE_FILES, devicePartColor } from './models'
+import { sourceFor } from './sources'
 import { JOINER_FILE, joinerCount, printFilesForPart } from './print-files'
 
 export interface PartRow {
@@ -18,6 +19,11 @@ export interface PartRow {
   quantity: number
   /** Printable source file(s) for this row, when it has one. */
   files: string[]
+  /**
+   * Model page to send the maker to when this row has no printable file —
+   * e.g. a printed panel this app only draws as a flat stand-in.
+   */
+  sourceUrl?: string
 }
 
 function patternText(pattern: PatternId, solid: boolean): { pattern: string; solid: string } {
@@ -54,13 +60,21 @@ export function buildPartsList(state: BuildState): PartRow[] {
 
     const style = parts[part]
     const pt = patternText(style.pattern, style.solid)
+    const partFiles = printFilesForPart(state, part)
+    // Only files that actually ship: `download` rows exist for parts whose mesh
+    // here is only a stand-in, so naming that file would point the maker at
+    // something they must not print. Such a row links the source page instead.
+    const shippable = partFiles.filter((f) => f.status === 'print' || f.status === 'review')
+    const downloadRow = partFiles.find((f) => f.status === 'download')
+    const sourceUrl = downloadRow ? sourceFor(downloadRow.file).url : undefined
     rows.push({
       part: PART_LABELS[part],
       color: style.color,
       pattern: pt.pattern,
       solid: pt.solid,
       quantity: qty,
-      files: [...new Set(printFilesForPart(state, part).map((f) => f.file))],
+      files: [...new Set(shippable.map((f) => f.file))],
+      ...(sourceUrl ? { sourceUrl } : {}),
     })
   }
 

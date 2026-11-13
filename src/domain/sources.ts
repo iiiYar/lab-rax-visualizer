@@ -23,7 +23,10 @@
  *   to fill the gap; the manifest shows it as unverified on purpose.
  */
 
-export type SourceKind = 'makerworld' | 'supplied' | 'repo' | 'bought' | 'unrecorded'
+import { BASE_QUANTITIES } from './constants'
+import { joinerCountFor } from './models'
+
+export type SourceKind = 'makerworld' | 'supplied' | 'repo' | 'owner' | 'bought' | 'unrecorded'
 
 export interface PartSource {
   kind: SourceKind
@@ -34,6 +37,9 @@ export interface PartSource {
   /** MakerWorld model id, when the source is a MakerWorld page. */
   modelId?: string
 }
+
+/** The owner's own STL, re-axed by a `tools/make-*.py` and nothing more — printable. */
+const ownerBuilt = (label: string): PartSource => ({ kind: 'owner', label })
 
 const mw = (modelId: string, label: string): PartSource => ({
   kind: 'makerworld',
@@ -91,9 +97,13 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'rail-depth.stl': LAB_RAX_SOURCES.rack5U,
   'foot.3mf': LAB_RAX_SOURCES.rack5U,
   'handle.3mf': LAB_RAX_SOURCES.rack5U,
+  // the repo's panel-top-bottom.stl is a flat stand-in drawn for the viewer; the
+  // 5U kit page is where the printable plain top/bottom panel comes from
   'panel-top-bottom.stl': LAB_RAX_SOURCES.rack5U,
   'panel-top-bottom-fan.stl': LAB_RAX_SOURCES.rack5U,
-  // posts and side panels ship together in the sizing pack
+  // posts and side panels ship together in the sizing pack — and the repo's
+  // panel-side-*.stl files are viewer stand-ins, so that page is where a maker
+  // gets the printable panels
   'rail-height-1u.stl': LAB_RAX_SOURCES.postsPanels,
   'rail-height-2u.stl': LAB_RAX_SOURCES.postsPanels,
   'rail-height-3u.stl': LAB_RAX_SOURCES.postsPanels,
@@ -117,15 +127,14 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'lenovo-tiny-front.stl': repoBuilt('tools/make-lenovo-tiny.py'),
   'minisforum-ms-01-body.stl': repoBuilt('tools/make-minisforum-ms01.py'),
   'minisforum-ms-01-front.stl': repoBuilt('tools/make-minisforum-ms01.py'),
-  // Real shelves, not drawings: the tool only rewrites the axes, so the label
-  // says that instead of the "visualization only" default. The MX64 faceplate
-  // is also scaled 45.25 -> 44.45 mm on height so it obeys the u*44.45 rule.
-  'shelf-mx64-1u.stl': repoBuilt(
-    'tools/make-mx64-parts.py',
+  // The owner's own shelves: the tool only rewrites the axes, so these are
+  // printable and get the `owner` kind rather than `repo` ("visualization
+  // only"). The MX64 faceplate is also scaled 45.25 -> 44.45 mm on height so
+  // it obeys the u*44.45 rule.
+  'shelf-mx64-1u.stl': ownerBuilt(
     'Owner STL, re-axed by tools/make-mx64-parts.py — faceplate height normalised to 1U',
   ),
-  'shelf-minisforum-ms-1u.stl': repoBuilt(
-    'tools/make-minisforum-ms01.py',
+  'shelf-minisforum-ms-1u.stl': ownerBuilt(
     'Owner STL, re-axed by tools/make-minisforum-ms01.py — open detail shells, see note',
   ),
   'device-mx64.stl': repoBuilt('tools/make-mx64-parts.py'),
@@ -190,9 +199,36 @@ export const DESIGN_LIMIT_NOTE =
   '10U is physically possible but the printed parts become the weak point ' +
   'with a populated rack — plan on a 10U frame, or brace it.'
 
-/** Hardware the frame needs, straight from the designer's bill of materials. */
+/**
+ * The three static frame hardware rows, straight from the designer's bill of
+ * materials. Joint fixings are not part of that list — `frameHardware` adds
+ * them once a rack is tall enough to have a joint.
+ */
 export const FRAME_HARDWARE = [
   { item: 'M6 × 10mm button-head screws', qty: '24 for the frame' },
   { item: 'M6 brass inserts, 8mm OD × 4mm', qty: '24 for the frame' },
   { item: 'M6 brass inserts for equipment', qty: '6 per rack unit' },
 ] as const
+
+/**
+ * Hardware for a specific rack: the designer's static frame list plus the
+ * joiner fixings once the rack is stacked past 5U. The joiner fixings are not
+ * in the designer's bill of materials — they are inferred from the joiner mesh
+ * (7 mm plate, 2 mm counterbore): two M6 × 10 screws and two M6 inserts per
+ * joiner. Leaving them out would leave a tall build short at exactly the
+ * joints that carry it.
+ */
+export function frameHardware(rackU: number): { item: string; qty: string }[] {
+  const joiners = joinerCountFor(rackU, BASE_QUANTITIES.verticalRails ?? 4)
+  return [
+    ...FRAME_HARDWARE,
+    ...(joiners > 0
+      ? [
+          {
+            item: 'Post joiners: M6 × 10mm button-head screws + M6 brass inserts (8mm OD)',
+            qty: `${2 * joiners} of each — 2 per joiner (inferred from the mesh: 7 mm plate, 2 mm counterbore)`,
+          },
+        ]
+      : []),
+  ]
+}

@@ -8,6 +8,7 @@ import {
   SIDE_PANEL_FILES,
   VERTICAL_RAIL_FILES,
   decomposeIntoSegments,
+  joinerCountFor,
 } from './models'
 
 /**
@@ -17,12 +18,11 @@ import {
  * - `source-only` listed for completeness; the file here is *not* a print source
  *                 (a bought device's visualisation mesh, a squashed viz mesh, or
  *                 a panel that is cut from acrylic rather than printed).
- * - `download`    required by the build, printed in the real thing, but this app
- *                 ships no mesh for it — the row points at the source page. It is
- *                 never written into the archive, so nobody hunts for a file that
- *                 was never there. No part uses it since the joiner mesh landed;
- *                 it stays as the honest option for the next part that ships
- *                 without one, instead of a placeholder mesh.
+ * - `download`    required by the build and printed in the real thing, but this
+ *                 app has no mesh for it — only a flat stand-in drawn for the 3D
+ *                 view, or nothing at all. The row points at the source page and
+ *                 is never written into the archive, so nobody hunts for a file
+ *                 that was never there. Used by the side and bottom panels.
  */
 export type PrintStatus = 'print' | 'review' | 'source-only' | 'download'
 
@@ -92,25 +92,58 @@ const FILE_SIZES: Record<string, [number, number, number]> = {
   'device-hdd-caddy-handle.stl': [17.65, 9.5, 83.15],
 }
 
-/** Rails and side panels only exist in 1U–5U segments; a rack is stacked from them. */
+/** Rails only exist in 1U–5U segments; a rack is stacked from them. */
 function segmentFiles(
   rackU: number,
   files: Record<number, string>,
   part: string,
   perRack: number,
-  material: 'printed' | 'acrylic',
 ): PrintFile[] {
   return decomposeIntoSegments(rackU).map((u) => ({
     file: files[u],
     part: `${part} ${u}U`,
     quantity: perRack,
-    status: material === 'acrylic' ? 'source-only' : 'print',
+    status: 'print',
     group: 'frame',
     u,
-    note:
-      material === 'acrylic'
-        ? 'Acrylic option: cut from sheet, not printed — use the mesh outline as a cutting reference.'
-        : undefined,
+  }))
+}
+
+/**
+ * Side panels also come in 1U–5U segments, but the panel files in this repo are
+ * flat 12-triangle boxes drawn to give the 3D view something upright — they are
+ * not the designer's parts. So a printed panel is a `download` row that sends
+ * the maker to the page holding the real panel, never a row that offers the
+ * stand-in as a file to slice.
+ */
+function sidePanelFiles(rackU: number, material: 'printed' | 'acrylic'): PrintFile[] {
+  const note =
+    material === 'acrylic'
+      ? "Acrylic option: cut from sheet, not printed — the size listed is this app's " +
+        "outline; take edge and hole details from the designer's panel on the source page."
+      : 'This app only has a flat stand-in of this panel for the 3D view; print ' +
+        "the designer's panel from the posts & panels page (1294478)."
+  // Every side panel here is its segment height + 5.9 mm in this app's outline,
+  // so stacking two segments makes the panels overlap by that much at the joint.
+  // Nothing in this app says which panels the designer intends for added
+  // segments, so the note points at the extension pack rather than guessing.
+  const stackNote =
+    material === 'acrylic'
+      ? 'Cut one full-height sheet per side rather than stacking segment outlines, ' +
+        "which overlap 5.9 mm at each joint in this app's outline."
+      : "In this app's outline each panel is 5.9 mm taller than its segment, so " +
+        "stacked panels overlap at every joint — check the designer's extension " +
+        'pack (1304384, https://makerworld.com/en/models/1304384) for the panels ' +
+        'meant for added segments.'
+
+  return decomposeIntoSegments(rackU).map((u) => ({
+    file: SIDE_PANEL_FILES[u],
+    part: `Side panel ${u}U`,
+    quantity: BASE_QUANTITIES.sidePanels ?? 2,
+    status: material === 'acrylic' ? 'source-only' : 'download',
+    group: 'frame',
+    u,
+    note: rackU > 5 ? `${note} ${stackNote}` : note,
   }))
 }
 
@@ -124,9 +157,9 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
 
   switch (part) {
     case 'verticalRails':
-      return segmentFiles(rackU, VERTICAL_RAIL_FILES, 'Height rail', BASE_QUANTITIES.verticalRails ?? 4, 'printed')
+      return segmentFiles(rackU, VERTICAL_RAIL_FILES, 'Height rail', BASE_QUANTITIES.verticalRails ?? 4)
     case 'sidePanels':
-      return segmentFiles(rackU, SIDE_PANEL_FILES, 'Side panel', BASE_QUANTITIES.sidePanels ?? 2, material)
+      return sidePanelFiles(rackU, material)
     case 'widthRails':
       return [
         {
@@ -160,9 +193,10 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           u: 1,
         },
       ]
-    // The top cover is the kit's vented panel — the part with the fan openings.
-    // The plain slab is only a 12-triangle box with no screw holes, so it is a
-    // cutting template for the bottom, never the thing you slice for it.
+    // The top cover is the kit's vented panel — the part with the fan openings,
+    // and the only top file here that is a real mesh. The plain slab is a
+    // 12-triangle stand-in drawn for the viewer, so the bottom row below points
+    // at the page with the real panel instead of offering that file.
     case 'topPanel':
       return [
         {
@@ -173,7 +207,8 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           group: 'frame',
           note:
             material === 'acrylic'
-              ? 'Acrylic option: cut from sheet, not printed — use the mesh outline as a cutting reference.'
+              ? "Acrylic option: cut from sheet, not printed — the size listed is this app's " +
+                "outline; take edge and hole details from the designer's panel on the source page."
               : 'The 5U kit\u2019s top cover: same footprint as the slab, with the fan openings cut in.',
         },
       ]
@@ -183,12 +218,18 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
           file: MODEL_FILES.panelTopBottom,
           part: 'Bottom panel',
           quantity: 1,
-          status: material === 'acrylic' ? 'source-only' : 'review',
+          // Same story as the side panels: the slab here is a stand-in, so a
+          // printed bottom is a row that names the real panel and its page.
+          status: material === 'acrylic' ? 'source-only' : 'download',
           group: 'frame',
           note:
             material === 'acrylic'
-              ? 'Acrylic option: cut from sheet, not printed — use the mesh outline as a cutting reference.'
-              : undefined,
+              ? "Acrylic option: cut from sheet, not printed — the size listed is this app's " +
+                "outline; take edge and hole details from the designer's panel on the source page."
+              : "This app only has a flat stand-in of this panel; get the designer's " +
+                'top/bottom panel from the 5U kit page (1294480), or print the vented ' +
+                'top cover `panel-top-bottom-fan.stl` a second time — same outer size ' +
+                '(228.05 × 171.5 × 3 mm); check its holes suit the bottom.',
         },
       ]
     case 'handles':
@@ -246,15 +287,10 @@ const SHELF_NOTES: Partial<Record<ShelfType, { status: PrintStatus; note: string
  * be reached from more than one part, so keying them by filename keeps them
  * from going stale when a row changes.
  */
-const FILE_NOTES: Record<string, { status: PrintStatus; note: string }> = {
-  'panel-top-bottom.stl': {
-    status: 'review',
-    note:
-      'Plain 228 x 171.5 x 3 mm slab (12 triangles, no screw holes) — a cutting ' +
-      'template rather than a finished panel. The top cover in this build is the ' +
-      'vented one; this file is what the bottom is cut from.',
-  },
-}
+// Empty on purpose: the last entry was `panel-top-bottom.stl`, and that row now
+// carries its own `download` status and note — a file-level override here would
+// only fight it. The map stays for the next mesh that needs one.
+const FILE_NOTES: Partial<Record<string, { status: PrintStatus; note: string }>> = {}
 
 /** Devices that are printed rather than bought. Everything else is real hardware. */
 const PRINTED_DEVICES: Partial<Record<DeviceType, true>> = {
@@ -271,7 +307,7 @@ const DEVICE_NOTES: Partial<Record<DeviceType, string>> = {
  * post, four posts. 8U stacks 5+3 → 4 joiners; 12U stacks 5+5+2 → 8.
  */
 export function joinerCount(rackU: number): number {
-  return (decomposeIntoSegments(rackU).length - 1) * (BASE_QUANTITIES.verticalRails ?? 4)
+  return joinerCountFor(rackU, BASE_QUANTITIES.verticalRails ?? 4)
 }
 
 /**
@@ -298,10 +334,15 @@ export function printFiles(state: BuildState): PrintFile[] {
   const add = (f: PrintFile) => {
     const sizeMm = FILE_SIZES[f.file]
     const fileNote = FILE_NOTES[f.file]
+    // A `download` row means the mesh here is a stand-in, so its status is final.
     const next: PrintFile = {
       ...f,
       ...(fileNote
-        ? { status: f.status === 'source-only' ? f.status : fileNote.status, note: f.note ?? fileNote.note }
+        ? {
+            status:
+              f.status === 'source-only' || f.status === 'download' ? f.status : fileNote.status,
+            note: f.note ?? fileNote.note,
+          }
         : {}),
       source: f.source ?? sourceFor(f.file),
     }
@@ -311,8 +352,13 @@ export function printFiles(state: BuildState): PrintFile[] {
       return
     }
     existing.quantity += next.quantity
-    // Keep the most cautious status if a file is shared by two rows.
-    if (existing.status === 'print' && next.status !== 'print') existing.status = next.status
+    // A stand-in must never become printable: `download` wins over any other row.
+    if (next.status === 'download' || existing.status === 'download') {
+      existing.status = 'download'
+    } else if (existing.status === 'print' && next.status !== 'print') {
+      // Keep the most cautious status if a file is shared by two rows.
+      existing.status = next.status
+    }
     if (!existing.note && next.note) existing.note = next.note
   }
 

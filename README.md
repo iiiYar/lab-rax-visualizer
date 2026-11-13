@@ -212,7 +212,7 @@ actually print for this build". Every part maps to one or more files in
 | `print`       | Closed, manifold mesh — slice and print as-is                        |
 | `review`      | Printable shell but the file also carries open detail shells; repair or delete them first |
 | `source-only` | Not a print file: acrylic parts cut from sheet, meshes used only for visualization, and bought hardware |
-| `download`    | Printed part with no mesh here — the row gives the count and the model page, and stays out of the zip. No part uses it today; it is kept for the next file that ships without a mesh |
+| `download`    | Printed part with no mesh here — the row gives the count and the model page, and stays out of the zip. Used today by the stand-in side and bottom panels |
 
 That status drives three places:
 
@@ -247,8 +247,8 @@ it provenance would prove nothing.
 Two frame parts are worth naming because the filenames mislead. The top cover
 is `panel-top-bottom-fan.stl`, the kit's vented panel and the one the viewer
 draws on top; `panel-top-bottom.stl` is a 12-triangle slab with no screw holes,
-so it is a cutting template for the bottom, not a part to slice. And the post
-joiner is derived, not typed in: `buildPartsList` adds it with the same
+so a printed bottom is a `download` row pointing at the 5U kit page, not a
+file to slice. And the post joiner is derived, not typed in: `buildPartsList` adds it with the same
 `joinerCount` the manifest uses, so a parts export cannot list eight rails for
 a 12U rack and stay silent about the eight joiners that hold them together.
 
@@ -294,6 +294,7 @@ from, because a planner that hands out STLs without a trail is a liability:
 | `makerworld`  | A specific MakerWorld model page, with the id in the map        |
 | `supplied`    | A download from the owner, pinned by SHA-256 — no page claimed   |
 | `repo`        | Built by `tools/make-*.py` from measurements — visualization only |
+| `owner`       | The owner's own STL, re-axed by a tool here — printable, no model page |
 | `bought`      | Bought hardware; the mesh only shows it in 3D, nothing to print |
 | `unrecorded`  | Origin was never written down — flagged on purpose, never invented |
 
@@ -349,7 +350,7 @@ and the measurements say the plate goes *inside* the post, not on it:
 | socket, across the post's depth | 24 mm (mesh Y 121.5–145.5 of 110.5–145.5) | same |
 | socket depth | 20 mm at both ends (`Z = 20`, `Z = height − 20`, 168 mm² each) | same |
 | plate | 23.85 × 39.7 × 7 (23.70 across after the edge chamfer) | `post-joiner.stl` |
-| bolts | Ø3.2, 19.96 apart, Ø10.9 × 2 mm counterbores on one face | same |
+| bolts | Ø6.4 (M6 clearance), 20 mm apart, Ø10.9 × 2 mm counterbores on one face | same |
 
 39.7 = 2 × 19.85 is exactly two 20 mm sockets, and 23.85 slides into the
 24 mm width, so the plate is a press-fit splice that disappears inside the
@@ -374,10 +375,11 @@ The plate is 7 mm thick all over: the earlier "5 mm body + 2 mm flange"
 reading was wrong, as the area drop above `Z = 5` is the two counterbores
 (2 × ~61 mm²), not a flange.
 
-Status falls back to `download` if `JOINER_FILE` is ever emptied again: the row
-still appears in the manifest, CSV, workbook and checklist under **Printed, but
-not in this archive** with the count and the model page, and stays out of the
-zip, because pointing at a filename that is not there is worse than saying so.
+Any printed part this app has no real mesh for falls back to `download`: its
+row still appears in the manifest, CSV, workbook and checklist under **Printed,
+but not in this archive** with the count and the model page, and stays out of
+the zip, because pointing at a filename that is not there — or at a stand-in
+mesh — is worse than saying so.
 
 The sizes in `FILE_SIZES` were measured with `trimesh` (`mesh.extents`) over
 every file in `public/models-3d/`. If you replace a model, re-measure it:

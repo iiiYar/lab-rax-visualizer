@@ -41,10 +41,13 @@ export async function exportXlsx(state: BuildState): Promise<void> {
   ws.addRow(['Done', 'Part', 'File', 'Color', 'Pattern', 'Solid/Backplate', 'Qty'])
   styleHeader(ws, 7)
   for (const r of rows) {
-    // A row with no file is bought hardware, not something to print.
-    const row = ws.addRow([CHECK_OFF, r.part, r.files.join(' · ') || '—', r.color, r.pattern, r.solid, r.quantity])
+    // A row with no file is bought hardware or a part this app only draws as a
+    // stand-in; when a source page is known, the File cell links to it instead.
+    const fileCell = r.files.join(' · ') || (r.sourceUrl ? 'Download from source' : '—')
+    const row = ws.addRow([CHECK_OFF, r.part, fileCell, r.color, r.pattern, r.solid, r.quantity])
     row.alignment = { vertical: 'top' }
     if (r.files.length > 0) linkCell(ws, `C${row.number}`, modelUrl(r.files[0]), r.files[0])
+    else if (r.sourceUrl) linkCell(ws, `C${row.number}`, r.sourceUrl, 'Download from source')
   }
   ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: rows.length + 1, column: 7 } }
   if (rows.length > 0) tickColumn(ws, 'A', rows.length + 1)
@@ -72,6 +75,9 @@ export async function exportXlsx(state: BuildState): Promise<void> {
   wsFiles.addRow(['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Note', 'Download'])
   styleHeader(wsFiles, 11)
   for (const f of files) {
+    // Only files that actually ship get a Download link: `download` and
+    // `source-only` rows have no file in the archive.
+    const shipped = f.status === 'print' || f.status === 'review'
     const row = wsFiles.addRow([
       f.no ?? '',
       f.no === null ? '' : CHECK_OFF,
@@ -83,12 +89,12 @@ export async function exportXlsx(state: BuildState): Promise<void> {
       STATUS_LABEL[f.status],
       f.source.url ?? sourceCellText(f.source),
       f.note,
-      // A joinery row has no file here; linking it to models-3d/ would 404.
-      f.file ? 'Download' : '',
+      // A row with no shipped file; linking it to models-3d/ would 404.
+      shipped && f.file ? 'Download' : '',
     ])
     row.alignment = { vertical: 'top' }
     if (f.source.url) linkCell(wsFiles, `I${row.number}`, f.source.url, f.source.label)
-    if (f.file) linkCell(wsFiles, `K${row.number}`, modelUrl(f.file), f.file)
+    if (shipped && f.file) linkCell(wsFiles, `K${row.number}`, modelUrl(f.file), f.file)
   }
 
   const totals = manifestTotals(files)
