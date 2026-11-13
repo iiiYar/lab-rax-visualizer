@@ -12,8 +12,17 @@ export interface BundleProgress {
   file: string
 }
 
-function modelUrl(file: string): string {
-  return new URL(`models-3d/${file}`, document.baseURI).href
+/** Where the meshes live, as an absolute URL the fetch can use as-is. */
+function modelUrl(file: string, baseUrl: string): string {
+  return new URL(`models-3d/${file}`, baseUrl).href
+}
+
+export interface StlBundleOptions {
+  onProgress?: (progress: BundleProgress) => void
+  /** Absolute URL the mesh files are served from. Defaults to the current page. */
+  baseUrl?: string
+  /** Read bytes from somewhere other than the network, e.g. disk in Node. */
+  fetchFile?: (file: string) => Promise<ArrayBuffer>
 }
 
 /** Everything a maker needs to know before pressing "slice". */
@@ -115,13 +124,18 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
  */
 export async function buildStlBundle(
   state: BuildState,
-  fetchFile: (file: string) => Promise<ArrayBuffer> = async (file) => {
-    const res = await fetch(modelUrl(file))
-    if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)
-    return res.arrayBuffer()
-  },
-  onProgress?: (progress: BundleProgress) => void,
+  options: StlBundleOptions = {},
 ): Promise<{ blob: Blob; filename: string }> {
+  const { onProgress } = options
+  const baseUrl = options.baseUrl ?? (typeof document === 'undefined' ? '/' : document.baseURI)
+  const fetchFile =
+    options.fetchFile ??
+    (async (file: string) => {
+      const res = await fetch(modelUrl(file, baseUrl))
+      if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)
+      return res.arrayBuffer()
+    })
+
   const files = printFiles(state)
   // `download` rows have no file in this repo by definition; only rows whose
   // mesh we actually serve go into the zip.
@@ -180,11 +194,93 @@ export async function buildStlBundle(
   return { blob, filename: `lab-rax-${state.rackU}U-stl.zip` }
 }
 
-/** Build the archive and trigger the browser download. */
+/**
+ * Build the archive in a worker and trigger the browser download.
+ *
+ * Why a worker: fetching ~11 MB of STL, hashing it and deflating it keeps the
+ * main thread busy for tens of seconds. Run that on the page thread and the
+ * scene's own heap is competing with the zip buffers — the archive either
+ * stalls for minutes or never finishes at all, with the button stuck at
+ * "Zipping 10/10". A dedicated worker gets its own thread and its own heap, so
+ * the renderer keeps painting and the archive completes.
+ */
 export async function exportStlBundle(
   state: BuildState,
   onProgress?: (progress: BundleProgress) => void,
 ): Promise<void> {
-  const { blob, filename } = await buildStlBundle(state, undefined, onProgress)
-  download(blob, filename)
+  try {
+    const { bytes, filename } = await buildInWorker(state, onProgress)
+    download(new Blob([bytes], { type: 'application/zip' }), filename)
+  } catch (err) {
+    // Only the "worker could not start" case falls back: a worker that ran and
+    // reported a problem has a real error worth showing, and rebuilding the
+    // same archive on the main thread would just hang the way it used to.
+    if ((err as { workerStarted?: boolean }).workerStarted) throw err
+    console.warn('Archive worker unavailable, building on the main thread.', err)
+    const { blob, filename } = await buildStlBundle(state, { onProgress })
+    download(blob, filename)
+  }
+}
+
+interface WorkerReply {
+  type: 'progress' | 'done' | 'error'
+  done?: number
+  total?: number
+  file?: string
+  bytes?: ArrayBuffer
+  filename?: string
+  message?: string
+}
+
+/**
+ * The worker is a plain module next to this one; Vite bundles it (and JSZip,
+ * SheetJS with it) into its own chunk on demand.
+ */
+function buildInWorker(
+  state: BuildState,
+  onProgress?: (progress: BundleProgress) => void,
+): Promise<{ bytes: ArrayBuffer; filename: string }> {
+  return new Promise((resolve, reject) => {
+    let worker: Worker
+    try {
+      worker = new Worker(new URL('./zip-worker.ts', import.meta.url), { type: 'module' })
+    } catch (err) {
+      // Very old browser or a CSP that blocks `worker-src`. Caller falls back
+      // to building on the main thread.
+      reject(err)
+      return
+    }
+
+    let started = false
+    const finish = (fn: () => void) => {
+      worker.terminate()
+      fn()
+    }
+
+    worker.onmessage = (event: MessageEvent<WorkerReply>) => {
+      const reply = event.data
+      if (reply.type === 'progress') {
+        started = true
+        onProgress?.({ done: reply.done ?? 0, total: reply.total ?? 0, file: reply.file ?? '' })
+        return
+      }
+      if (reply.type === 'done' && reply.bytes && reply.filename) {
+        finish(() => resolve({ bytes: reply.bytes as ArrayBuffer, filename: reply.filename as string }))
+        return
+      }
+      finish(() =>
+        reject(Object.assign(new Error(reply.message ?? 'The archive worker failed.'), { workerStarted: started })),
+      )
+    }
+
+    worker.onerror = (event) => {
+      // A worker that never reported anything most likely failed to load (old
+      // browser, blocked chunk); one that did report is a real build failure.
+      finish(() =>
+        reject(Object.assign(new Error(event.message || 'The archive worker crashed.'), { workerStarted: started })),
+      )
+    }
+
+    worker.postMessage({ state, baseUrl: document.baseURI })
+  })
 }
