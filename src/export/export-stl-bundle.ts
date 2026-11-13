@@ -181,7 +181,7 @@ export async function buildStlBundle(
   // One ordered row set, three renderings — see print-manifest.ts.
   const rows = manifestRows(state)
   root.file('print-list.html', printListHtml(rows, state))
-  root.file('manifest.xlsx', manifestXlsx(rows, state))
+  root.file('manifest.xlsx', await manifestXlsx(rows, state))
   root.file('manifest.csv', manifestCsv(rows, state))
 
   onProgress?.({ done: printable.length, total: printable.length, file: 'Compressing…' })

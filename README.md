@@ -22,7 +22,7 @@ a fully static single-page app — all state lives in the browser
 | App state           | Zustand (with `persist` middleware → `localStorage`) |
 | Styling             | Tailwind CSS                                          |
 | Color picker widget | `react-colorful`                                      |
-| Spreadsheet export  | `xlsx` (SheetJS)                                      |
+| Spreadsheet export  | `exceljs` — real hyperlinks and a one-click ☐/☑ dropdown per row |
 | ZIP packaging       | `jszip` (loaded on demand)                            |
 
 No router, no server framework, no test runner is configured. `npm run build`
@@ -65,8 +65,11 @@ src/
   ui/                  Generic, store-agnostic input widgets (color-picker, palette-picker, visibility-toggle)
 
   export/              Parts-list export
-    export-csv.ts      Plain CSV with a "☐" checkbox glyph column
-    export-xlsx.ts     SheetJS workbook: parts list + "Print files" sheet with download links
+    export-csv.ts      Plain CSV with a "☐" tick column (text glyph — CSV has no controls)
+    export-xlsx.ts     ExcelJS workbook: parts list + "Print files" sheet, live links,
+                       and a ☐/☑ dropdown on every row that can be ticked
+    xlsx-common.ts     the shared bits both workbooks use (header band, tick
+                       column, links, bytes)
     export-stl-bundle.ts  Zips the printable meshes with PRINT-ME.txt + manifest.csv
     download.ts        Shared Blob-download helper
 
@@ -365,11 +368,13 @@ three different files.
   one") is *not* implemented. The store has a `selectedPartId` field and a
   `selectPart` action wired up, and `scene.tsx` clears the selection on an
   empty-space click, but no UI yet reacts to a selection.
-- **XLSX checkboxes are not interactive.** The free/community build of
-  SheetJS (`xlsx`) can't embed real form-control checkboxes, so both the CSV
-  and XLSX exports use a `☐` text glyph in the "Done" column. If real
-  tickable checkboxes are required, swap `export-xlsx.ts` to use `exceljs`
-  instead.
+- **Checkboxes are dropdowns, not form controls.** Both workbooks write a
+  `☐`/`☑` data-validation list into the "Done" column, so one click opens a
+  two-item picker and a ticked row dims itself. That is the interactive form
+  either library can actually write: OOXML drawing controls are outside
+  ExcelJS's and SheetJS's writers, and a dropdown opens without Excel warning
+  about unsupported content. The CSV export keeps the `☐` glyph, because a
+  plain CSV cell has no control to speak of.
 - Ad/support panel links (`ad-panel.tsx`) are placeholders pointing at the
   generic Buy Me a Coffee / Patreon homepages — replace with real account
   links before shipping.
@@ -506,7 +511,7 @@ correctly from any subpath.
 | Regenerate a 3D-printed model file               | `tools/make-fan-noctua-40mm.py`, `tools/make-minisforum-ms01.py` (Docker + CadQuery — export the device STLs); other parts were converted from the `.step` files in the repo root the same way |
 | Give a shelf its own device slots                | Add the slot centres + accepted devices to `SHELF_DEVICE_SLOTS` (`constants.ts`) — the sidebar's Devices section picks it up automatically |
 | Change what's in the parts-list export           | `src/domain/parts-list.ts`                                |
-| Change export file format/columns                | `src/export/export-csv.ts`, `src/export/export-xlsx.ts`    |
+| Change export file format/columns                | `src/export/export-csv.ts`, `src/export/export-xlsx.ts`; shared workbook styling in `src/export/xlsx-common.ts` |
 | Change which files a part prints from / print status | `src/domain/print-files.ts`                            |
 | Change what goes into the STL archive / how it downloads | `src/export/export-stl-bundle.ts` (build + download) and `src/export/zip-worker.ts` (the thread it runs on) |
 | Adjust camera framing / lighting / ground grid    | `src/components/viewer/scene.tsx`                        |

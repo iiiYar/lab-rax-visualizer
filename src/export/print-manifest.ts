@@ -1,4 +1,5 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
+import { CHECK_OFF, linkCell, styleHeader, tickColumn, workbookBytes } from './xlsx-common'
 import type { BuildState } from '../domain/types'
 import { printFiles, type PrintGroup, type PrintFile, type PrintStatus } from '../domain/print-files'
 import { DESIGN_LIMIT_NOTE, DESIGN_LIMIT_U, FRAME_HARDWARE, sourceFor, type PartSource } from '../domain/sources'
@@ -159,76 +160,92 @@ export function manifestCsv(rows: ManifestRow[], state: BuildState): string {
 }
 
 /**
- * Two sheets: the ordered checklist, and counts per group/status. Widths,
- * header height and an autofilter are all the styling SheetJS community
- * supports, so the sheet is kept legible by content rather than by cell fills.
+ * Three sheets: the ordered checklist, counts per group/status, and where each
+ * file came from. ExcelJS is used for the tick column — a real one-click
+ * dropdown per printable row — which the SheetJS community build cannot write.
  */
-export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array {
+export async function manifestXlsx(rows: ManifestRow[], state: BuildState): Promise<Uint8Array> {
   const totals = manifestTotals(rows)
   const header = ['No.', 'Done', 'Unit', 'Group', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Notes']
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Lab Rax Planner'
+  wb.created = new Date()
 
-  const body = rows.map((r) => [
-    r.no ?? '',
-    r.no === null ? '' : '☐',
-    r.unit,
-    GROUP_LABEL[r.group],
-    r.part,
-    r.file || '—',
-    r.size,
-    r.qty,
-    r.statusLabel,
-    sourceCellText(r.source),
-    r.note,
-  ])
-  const tail: (string | number)[][] = [
-    [],
-    ['', '', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', ''],
-    ['', '', '', '', 'Files in this build', '', '', totals.files, '', '', ''],
-    ['', '', '', '', 'Needs review before slicing', '', '', totals.review, '', '', ''],
-    ['', '', '', '', 'Download separately (not in archive)', '', '', totals.missing, '', '', ''],
-    ['', '', '', '', 'Listed but not printable', '', '', totals.skipped, '', '', ''],
+  const ws = wb.addWorksheet('Print list', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  ws.columns = [
+    { width: 5 },
+    { width: 6 },
+    { width: 6 },
+    { width: 12 },
+    { width: 30 },
+    { width: 32 },
+    { width: 20 },
+    { width: 5 },
+    { width: 18 },
+    { width: 24 },
+    { width: 70 },
   ]
+  ws.addRow(header)
+  styleHeader(ws, header.length)
 
-  const ws = XLSX.utils.aoa_to_sheet([header, ...body, ...tail])
-  ws['!cols'] = [
-    { wch: 5 },
-    { wch: 6 },
-    { wch: 6 },
-    { wch: 12 },
-    { wch: 30 },
-    { wch: 32 },
-    { wch: 20 },
-    { wch: 5 },
-    { wch: 18 },
-    { wch: 24 },
-    { wch: 70 },
-  ]
-  ws['!rows'] = [{ hpx: 22 }]
-  // Filter over the data rows only, so the totals block stays out of it.
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: body.length, c: header.length - 1 } }) }
+  for (const r of rows) {
+    const row = ws.addRow([
+      r.no ?? '',
+      r.no === null ? '' : CHECK_OFF,
+      r.unit,
+      GROUP_LABEL[r.group],
+      r.part,
+      r.file || '—',
+      r.size,
+      r.qty,
+      r.statusLabel,
+      sourceCellText(r.source),
+      r.note,
+    ])
+    row.alignment = { vertical: 'top', wrapText: false }
+    if (r.source.url) linkCell(ws, `J${row.number}`, r.source.url, r.source.label)
+  }
 
-  const summary: (string | number)[][] = [['Group', 'Pieces', 'Files', 'Status', 'Pieces']]
+  // Filter the data rows only, so the totals block never lands inside it.
+  const lastDataRow = rows.length + 1
+  if (rows.length > 0) {
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: lastDataRow, column: header.length } }
+    tickColumn(ws, 'B', lastDataRow)
+  }
+
+  const totalsStart = ws.rowCount + 2
+  for (const [label, value] of [
+    ['TOTAL — pieces to print', totals.pieces],
+    ['Files in this build', totals.files],
+    ['Needs review before slicing', totals.review],
+    ['Download separately (not in archive)', totals.missing],
+    ['Listed but not printable', totals.skipped],
+  ] as [string, number][]) {
+    const row = ws.addRow(['', '', '', '', label, '', '', value, '', '', ''])
+    row.getCell(5).font = { bold: true }
+  }
+  ws.getRow(totalsStart - 1).height = 8
+
+  const summary = wb.addWorksheet('Summary')
+  summary.columns = [{ width: 26 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }]
+  summary.addRow(['Group', 'Pieces', 'Files', 'Status', 'Pieces'])
+  styleHeader(summary, 5)
   for (const g of GROUP_ORDER) {
     const groupRows = rows.filter((r) => r.group === g)
     const printed = groupRows.filter((r) => r.status !== 'source-only')
-    summary.push([GROUP_LABEL[g], totals.byGroup[g], printed.length, '', ''])
+    summary.addRow([GROUP_LABEL[g], totals.byGroup[g], printed.length, '', ''])
   }
-  summary.push([])
-  summary.push(['Status', 'Files', 'Pieces', '', ''])
+  summary.addRow([])
+  summary.addRow(['Status', 'Files', 'Pieces', '', '']).font = { bold: true }
   for (const s of ['print', 'review', 'source-only'] as PrintStatus[]) {
     const sel = rows.filter((r) => r.status === s)
-    summary.push([STATUS_LABEL[s], sel.length, sel.reduce((n, r) => n + r.qty, 0), '', ''])
+    summary.addRow([STATUS_LABEL[s], sel.length, sel.reduce((n, r) => n + r.qty, 0), '', ''])
   }
-  summary.push([])
-  summary.push(['Rack', `${state.rackU}U`, '', '', ''])
-  summary.push(['Total pieces to print', totals.pieces, '', '', ''])
-
-  const wsSummary = XLSX.utils.aoa_to_sheet(summary)
-  wsSummary['!cols'] = [{ wch: 26 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }]
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, 'Print list')
-  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary')
+  summary.addRow([])
+  summary.addRow(['Rack', `${state.rackU}U`, '', '', ''])
+  summary.addRow(['Total pieces to print', totals.pieces, '', '', '']).font = { bold: true }
 
   // One row per distinct source, with the files it explains — so a maker can
   // re-download the model instead of trusting a mesh that was passed around.
@@ -236,19 +253,18 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
   for (const r of rows) {
     // A joinery row has no file in this build; it still belongs in the sheet,
     // with an empty file list, so its model page stays one click away.
-    if (!r.file) {
-      const key = r.source.url ?? r.source.label
-      if (!grouped.has(key)) grouped.set(key, { source: r.source, files: [] })
-      continue
-    }
     const key = r.source.url ?? r.source.label
     const hit = grouped.get(key)
     if (hit) hit.files.push(r.file)
-    else grouped.set(key, { source: r.source, files: [r.file] })
+    else grouped.set(key, { source: r.source, files: r.file ? [r.file] : [] })
   }
-  const sourceSheet: (string | number)[][] = [
-    ['Source', 'Model ID', 'URL', 'Files in this build', 'Verification'],
-    ...Array.from(grouped.values()).map((g) => [
+
+  const sources = wb.addWorksheet('Sources')
+  sources.columns = [{ width: 36 }, { width: 12 }, { width: 56 }, { width: 60 }, { width: 52 }]
+  sources.addRow(['Source', 'Model ID', 'URL', 'Files in this build', 'Verification'])
+  styleHeader(sources, 5)
+  for (const g of grouped.values()) {
+    const row = sources.addRow([
       g.source.label,
       g.source.modelId ?? '',
       g.source.url ?? '',
@@ -258,16 +274,16 @@ export function manifestXlsx(rows: ManifestRow[], state: BuildState): Uint8Array
         : g.source.kind === 'supplied'
           ? 'Supplied copy pinned by SHA-256 — model page not recorded'
           : g.source.kind === 'repo'
-          ? 'Generated here — visualization only, do not print'
-          : g.source.kind === 'bought'
-            ? 'Bought part — mesh is a visualization, nothing to print'
-            : 'Origin not recorded — verify before printing',
-    ]),
-  ]
-  const wsSources = XLSX.utils.aoa_to_sheet(sourceSheet)
-  wsSources['!cols'] = [{ wch: 36 }, { wch: 12 }, { wch: 56 }, { wch: 60 }, { wch: 52 }]
-  XLSX.utils.book_append_sheet(wb, wsSources, 'Sources')
-  return XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array
+            ? 'Generated here — visualization only, do not print'
+            : g.source.kind === 'bought'
+              ? 'Bought part — mesh is a visualization, nothing to print'
+              : 'Origin not recorded — verify before printing',
+    ])
+    row.alignment = { vertical: 'top', wrapText: true }
+    if (g.source.url) linkCell(sources, `C${row.number}`, g.source.url, g.source.label)
+  }
+
+  return workbookBytes(wb)
 }
 
 /** Compact cell: the model id links out, so a printed sheet stays readable. */

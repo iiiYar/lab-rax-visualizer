@@ -3,8 +3,6 @@ import { useBuildStore } from '../../store/use-build-store'
 import { totalPartCount } from '../../domain/parts-list'
 import { DESIGN_LIMIT_NOTE, DESIGN_LIMIT_U } from '../../domain/sources'
 import { exportCsv } from '../../export/export-csv'
-import { exportXlsx } from '../../export/export-xlsx'
-import { exportStlBundle } from '../../export/export-stl-bundle'
 import { buildShareUrl } from '../../share/url-state'
 import type { BuildState } from '../../domain/types'
 import { Menu } from '../../ui/menu'
@@ -43,12 +41,20 @@ export function Header() {
     if (bundle) return
     setBundle({ done: 0, total: 0 })
     try {
+      // Loaded on demand: the exporter drags the spreadsheet and zip writers
+      // with it, and neither is needed until someone asks for a file.
+      const { exportStlBundle } = await import('../../export/export-stl-bundle')
       await exportStlBundle(currentBuild(), (p) => setBundle({ done: p.done, total: p.total }))
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'Could not build the STL archive.')
     } finally {
       setBundle(null)
     }
+  }
+
+  const onXlsx = async () => {
+    const { exportXlsx } = await import('../../export/export-xlsx')
+    await exportXlsx(currentBuild())
   }
 
   const bundleLabel = bundle
@@ -118,7 +124,7 @@ export function Header() {
           {bundleLabel}
         </button>
         <button
-          onClick={() => exportXlsx(currentBuild())}
+          onClick={onXlsx}
           className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110 pointer-coarse:py-2.5"
         >
           Export XLSX
@@ -135,7 +141,7 @@ export function Header() {
             {
               id: 'xlsx',
               label: 'Export XLSX',
-              onSelect: () => exportXlsx(currentBuild()),
+              onSelect: onXlsx,
               emphasis: true,
             },
           ]}

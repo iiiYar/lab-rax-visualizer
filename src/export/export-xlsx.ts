@@ -1,7 +1,9 @@
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
 import { manifestRows, manifestTotals, STATUS_LABEL, sourceCellText } from './print-manifest'
+import { download } from './download'
+import { CHECK_OFF, linkCell, styleHeader, tickColumn, workbookBytes } from './xlsx-common'
 
 /**
  * Absolute URL for a part file. Models are served from `models-3d/` beside the
@@ -19,43 +21,60 @@ function modelUrl(file: string): string {
  * is the print manifest: one row per file with a clickable download link, so a
  * shelf can be sliced without hunting through `public/models-3d/`.
  *
- * Note: the SheetJS community build cannot embed true interactive form-control
- * checkboxes, so the "Done" column uses a ☐ glyph you can tick manually (or
- * replace in your spreadsheet app). Switch to `exceljs` later if real
- * checkbox controls are required.
+ * The "Done" column is a real dropdown (☐ / ☑) built from an ExcelJS data
+ * validation, not a text glyph the maker has to retype: one click, pick a
+ * value, and the row dims itself. A drawn form-control checkbox is not
+ * something either spreadsheet library can write, and a dropdown is what
+ * Excel, LibreOffice and Sheets all agree on.
  */
-export function exportXlsx(state: BuildState): void {
+export async function exportXlsx(state: BuildState): Promise<void> {
   const rows = buildPartsList(state)
+  const wb = new ExcelJS.Workbook()
+  wb.creator = 'Lab Rax Planner'
+  wb.created = new Date()
 
-  const aoa: (string | number)[][] = [
-    ['Done', 'Part', 'File', 'Color', 'Pattern', 'Solid/Backplate', 'Qty'],
+  // --- Sheet 1: the shopping list ------------------------------------------
+  const ws = wb.addWorksheet(`Lab Rax ${state.rackU}U`, {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  ws.columns = [{ width: 6 }, { width: 30 }, { width: 32 }, { width: 12 }, { width: 14 }, { width: 16 }, { width: 6 }]
+  ws.addRow(['Done', 'Part', 'File', 'Color', 'Pattern', 'Solid/Backplate', 'Qty'])
+  styleHeader(ws, 7)
+  for (const r of rows) {
     // A row with no file is bought hardware, not something to print.
-    ...rows.map((r) => ['☐', r.part, r.files.join(' · ') || '—', r.color, r.pattern, r.solid, r.quantity]),
-  ]
-
-  const ws = XLSX.utils.aoa_to_sheet(aoa)
-  ws['!cols'] = [
-    { wch: 6 },
-    { wch: 30 },
-    { wch: 32 },
-    { wch: 12 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 6 },
-  ]
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, `Lab Rax ${state.rackU}U`)
+    const row = ws.addRow([CHECK_OFF, r.part, r.files.join(' · ') || '—', r.color, r.pattern, r.solid, r.quantity])
+    row.alignment = { vertical: 'top' }
+    if (r.files.length > 0) linkCell(ws, `C${row.number}`, modelUrl(r.files[0]), r.files[0])
+  }
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: rows.length + 1, column: 7 } }
+  if (rows.length > 0) tickColumn(ws, 'A', rows.length + 1)
 
   // --- Sheet 2: print manifest with live links ------------------------------
   // Same rows the zip's manifest.csv/xlsx and print-list.html are built from,
   // so the on-screen export and the downloaded archive cannot drift apart.
   const files = manifestRows(state)
-  const fileAoa: (string | number)[][] = [
-    ['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Note', 'Download'],
-    ...files.map((f) => [
+  const wsFiles = wb.addWorksheet('Print files', {
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+  })
+  wsFiles.columns = [
+    { width: 5 },
+    { width: 6 },
+    { width: 6 },
+    { width: 30 },
+    { width: 32 },
+    { width: 20 },
+    { width: 5 },
+    { width: 18 },
+    { width: 50 },
+    { width: 70 },
+    { width: 58 },
+  ]
+  wsFiles.addRow(['No.', 'Done', 'Unit', 'Part', 'File', 'Size (mm)', 'Qty', 'Status', 'Source', 'Note', 'Download'])
+  styleHeader(wsFiles, 11)
+  for (const f of files) {
+    const row = wsFiles.addRow([
       f.no ?? '',
-      f.no === null ? '' : '☐',
+      f.no === null ? '' : CHECK_OFF,
       f.unit,
       f.part,
       f.file || '—',
@@ -65,42 +84,24 @@ export function exportXlsx(state: BuildState): void {
       f.source.url ?? sourceCellText(f.source),
       f.note,
       // A joinery row has no file here; linking it to models-3d/ would 404.
-      f.file ? modelUrl(f.file) : '',
-    ]),
-  ]
+      f.file ? 'Download' : '',
+    ])
+    row.alignment = { vertical: 'top' }
+    if (f.source.url) linkCell(wsFiles, `I${row.number}`, f.source.url, f.source.label)
+    if (f.file) linkCell(wsFiles, `K${row.number}`, modelUrl(f.file), f.file)
+  }
 
   const totals = manifestTotals(files)
-  fileAoa.push([], ['', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', '', ''])
+  wsFiles.addRow([])
+  const totalRow = wsFiles.addRow(['', '', '', 'TOTAL — pieces to print', '', '', totals.pieces, '', '', '', ''])
+  totalRow.font = { bold: true }
 
-  const wsFiles = XLSX.utils.aoa_to_sheet(fileAoa)
-  wsFiles['!cols'] = [
-    { wch: 5 },
-    { wch: 6 },
-    { wch: 6 },
-    { wch: 30 },
-    { wch: 32 },
-    { wch: 20 },
-    { wch: 5 },
-    { wch: 18 },
-    { wch: 50 },
-    { wch: 70 },
-    { wch: 58 },
-  ]
-  wsFiles['!rows'] = [{ hpx: 22 }]
-  wsFiles['!autofilter'] = {
-    ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: files.length, c: 10 } }),
-  }
+  wsFiles.autoFilter = { from: { row: 1, column: 1 }, to: { row: files.length + 1, column: 11 } }
+  tickColumn(wsFiles, 'B', files.length + 1)
 
-  // Turn the Download column into real hyperlinks (SheetJS stores them beside
-  // the cell value; Excel renders the cell as clickable).
-  for (let i = 0; i < files.length; i++) {
-    if (!files[i].file) continue
-    const ref = XLSX.utils.encode_cell({ r: i + 1, c: 10 })
-    const cell = wsFiles[ref]
-    if (cell) cell.l = { Target: modelUrl(files[i].file), Tooltip: `Download ${files[i].file}` }
-  }
-
-  XLSX.utils.book_append_sheet(wb, wsFiles, 'Print files')
-
-  XLSX.writeFile(wb, `lab-rax-${state.rackU}U-parts.xlsx`)
+  const bytes = await workbookBytes(wb)
+  download(
+    new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `lab-rax-${state.rackU}U-parts.xlsx`,
+  )
 }
