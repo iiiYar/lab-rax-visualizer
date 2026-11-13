@@ -276,6 +276,8 @@ and matched by title on 2026-11-13. Header pages in that table:
 | Blank cover plates 1U–2U | [1385541](https://makerworld.com/en/models/1385541) |
 | 2U two-80mm fan holder | [1385530](https://makerworld.com/en/models/1385530) |
 | 1U shelf with slots (remix) | [1357259](https://makerworld.com/en/models/1357259) |
+| 2U Mini-ITX + ATX PSU shelf | [1360827](https://makerworld.com/en/models/1360827) |
+| 3U Mini-ITX dual-GPU shelf | [1523227](https://makerworld.com/en/models/1523227) |
 | Lenovo Tiny mount (remix) | [2213343](https://makerworld.com/en/models/2213343) |
 
 One design limit is stated in the checklist rather than silently ignored: Lab

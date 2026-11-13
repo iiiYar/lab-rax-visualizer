@@ -85,13 +85,6 @@ const UNRECORDED: PartSource = {
   label: 'Not recorded',
 }
 
-/**
- * Files that arrived as a download from the owner. Their bytes are pinned by
- * hash below, so "this is the file he sent" is checkable even though no model
- * page is claimed for them.
- */
-const supplied = (label: string): PartSource => ({ kind: 'supplied', label })
-
 export const FILE_SOURCES: Record<string, PartSource> = {
   // frame — the 5U kit holds the horizontal pieces, handles, feet and panels
   'rail-width.3mf': LAB_RAX_SOURCES.rack5U,
@@ -142,11 +135,13 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'device-minitx-motherboard.stl': BOUGHT,
   'device-minitx-pcie-card.stl': BOUGHT,
   'device-minitx-power-button.stl': BOUGHT,
-  // nothing left unrecorded: the eight files that were in this block now point
-  // at their page (six) or at a supplied copy pinned by hash (the two Mini ITX
-  // shelves), so a missing source is no longer expected here
-  'shelf-minitx-2u.stl': supplied('Supplied by the owner — Mini ITX shelf'),
-  'shelf-minitx-gpu-3u.stl': supplied('Supplied by the owner — Mini ITX GPU shelf'),
+  // The two Mini ITX shelves were late arrivals: the owner sent the files, then
+  // named the pages they came from on 2026-11-13. Both pages are MakerWorld
+  // shelves rather than frame parts, and both were opened and matched by title
+  // (`2HE 10 inch rack mount Mini-ITX + ATX PSU`, `3U 10 Zoll Rackmount
+  // Mini-ITX Dual-GPU`) before being claimed here.
+  'shelf-minitx-2u.stl': mw('1360827', '2HE 10" rack mount Mini-ITX + ATX PSU'),
+  'shelf-minitx-gpu-3u.stl': mw('1523227', '3U 10" rack mount Mini-ITX dual GPU'),
 }
 
 /**
@@ -170,11 +165,11 @@ export const REFERENCE_HASHES: Record<string, FileHash> = {
   },
   'shelf-minitx-2u.stl': {
     sha256: '0e74ad0f00fd9d9bff3e97aa49a02762bbf2d467ed952dc2284fc3264e810037',
-    origin: 'Mainboard_Mini_ITX.stl, supplied 2026-11-13',
+    origin: 'Mainboard_Mini_ITX.stl, page 1360827, supplied 2026-11-13',
   },
   'shelf-minitx-gpu-3u.stl': {
     sha256: 'bc853fa86f8b9df0045869e070babf3ae4969d33ef96471e72f77eb339f4a593',
-    origin: 'MINI_ITX_GPU_FAN_16mm_Button.stl, supplied 2026-11-13',
+    origin: 'MINI_ITX_GPU_FAN_16mm_Button.stl, page 1523227, supplied 2026-11-13',
   },
 }
 
