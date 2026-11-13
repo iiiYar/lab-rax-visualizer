@@ -41,10 +41,34 @@ export function RackReal() {
   const rail4 = useStlPart(VERTICAL_RAIL_FILES[4])
   const rail5 = useStlPart(VERTICAL_RAIL_FILES[5])
   const railByLen = { 1: rail1, 2: rail2, 3: rail3, 4: rail4, 5: rail5 }
-  // The post joiner is drawn in the post's own frame: +90° about X lays the
-  // plate on its face (7 mm of thickness along Z, flange outward) and leaves
-  // its two holes ±10 mm along Y, i.e. facing the joint it straddles.
-  const joiner = useStlPart(JOINER_FILE, 0, PI / 2)
+  // The post joiner is a printed splice plate, and the posts are built to
+  // swallow it whole: every segment ends in a 20 mm deep socket on its inner
+  // side face, so two stacked segments leave a 40 mm tall cavity and the 39.7 mm
+  // plate disappears inside the post instead of bolting onto it.
+  //
+  // Sockets, measured on rail-height-{1..5}u.stl (all five lengths carry the
+  // same pair): floors at Z = 20 and Z = height − 20, each 168 mm² = 7 mm
+  // across the post's width (mesh X 120..127 of 113..143) by 24 mm across its
+  // depth (mesh Y 121.5..145.5 of 110.5..145.5). The depth side is open at mesh
+  // Y 145.5 — the post's inner face — which is the slot you can see inside the
+  // frame next to the joint.
+  //
+  // Plate, measured on post-joiner.stl: 23.85 × 39.7 × 7 (23.70 across once the
+  // edge chamfer is taken off) with two Ø3.2 holes 19.96 apart and Ø10.9 × 2 mm
+  // counterbores on one face. 39.7 = 2 × 19.85 fills the two 20 mm sockets and
+  // 23.85 slides into the 24 mm width, so the bolts — one per segment — land
+  // 10 mm either side of the seam and the joint is a press fit, not a guess.
+  //
+  // +90° about Y turns the plate's 7 mm thickness across the post's width and
+  // leaves its counterbored face on local +X: the open side of the socket, which
+  // faces the rack interior at all four corners (`corners` below), so the bolt
+  // heads stay reachable from inside the assembled rack.
+  const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
+  const JOINER_LENGTH_MM = 39.7
+  // Socket centre in the post's own frame: 7 mm across, 1 mm in from the +X
+  // face; 24 mm across the depth, flush with the −Z face.
+  const joinerX = -1 - 7 / 2
+  const joinerZ = -rail1.size.z / 2 + 24 / 2
 
   const panel1 = useStlPart(SIDE_PANEL_FILES[1], SIDE_PANEL_EXTRA_ROT_Y)
   const panel2 = useStlPart(SIDE_PANEL_FILES[2], SIDE_PANEL_EXTRA_ROT_Y)
@@ -251,21 +275,12 @@ export function RackReal() {
         })}
 
       {/* Post joiners: the printed splice plate that holds stacked post
-          segments together — one per post per joint, so four per seam.
-
-          Placement is read off the meshes, not guessed. The plate measures
-          23.85 × 39.7 and is 7 mm thick (5 mm body against the post, 2 mm
-          flange outside it); its two Ø3.2 through-holes are 19.96 mm apart,
-          centred on the plate, with Ø10.9 flange counterbores on the outer
-          face. That pitch is two 10 mm setbacks — and stacked segments butt
-          on the U grid — so the plate straddles the joint with one bolt each
-          side of it: Y = seam ± 10.
-
-          Face: the post's own +Z face, which is outward at all four corners
-          once the corner transform is applied, and stays clear of the side
-          panels (they sit 1 mm inside that same envelope edge). The posts
-          carry no matching bolt holes in the STL — they take brass inserts —
-          so the joint seam is the anchor we actually have. */}
+          segments together — one per post per joint, so four per seam. It sits
+          *inside* the post: the socket pair described on the `joiner` hook
+          above leaves a 40 mm tall cavity that the plate fills end to end, so
+          the only thing visible from outside is the slot on the post's inner
+          face and the two counterbored bolt heads 10 mm either side of the
+          seam. */}
       {visibility.joiners &&
         corners.map((c) => (
           <group key={`joiner-${c.key}`} {...cornerTransform(c)}>
@@ -274,7 +289,7 @@ export function RackReal() {
                 key={seam}
                 geometry={joiner.geometry}
                 color={parts.joiners.color}
-                position={[0, seam, rail1.size.z / 2]}
+                position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
               />
             ))}
           </group>

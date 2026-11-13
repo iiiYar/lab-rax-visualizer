@@ -340,22 +340,39 @@ joiner drawn from a description is a joiner that does not fit the posts. The
 pack offers a brass-insert variant (shipped here, matching the rest of the
 frame) and a bolted 3MF for the bolted kit.
 
-It is also drawn, at every joint, from those measurements rather than by eye.
-The plate is 23.85 × 39.7 and 7 mm thick (5 mm body, 2 mm flange outside), and
-its two Ø3.2 through-holes sit 19.96 mm apart — a 10 mm setback each side of
-the joint, which is why it straddles the seam at `Y = seam ± 10`. `rack-real.tsx`
-places it in the post's own frame (X ±11.925; Z 17.5 → 24.5 against the post
-face) inside the same per-corner group the rails use, so the mirror/rotation
-maths is written once. Posts and joiners are now separate part types: the
-joiner has its own swatch and its own eye icon in **Parts**, and the parts
-export follows that swatch instead of borrowing the post colour.
+It is also drawn, at every joint, from those measurements rather than by eye —
+and the measurements say the plate goes *inside* the post, not on it:
 
-Verified with `trimesh` rather than eyeballed: the plate's body face lands
-flush on the post's front face, and **0 of 776** joiner vertices fall inside the
-rail. The posts carry no matching bolt holes — they take heat-set brass inserts
-— so the joint seam, not a hole pattern, is what anchors the plate. It faces
-outward at all four corners and stays clear of the side panels, which sit 1 mm
-inside that same envelope edge.
+| measured | value | where it comes from |
+| --- | --- | --- |
+| socket, across the post's width | 7 mm (mesh X 120–127 of 113–143) | `rail-height-{1..5}u.stl` |
+| socket, across the post's depth | 24 mm (mesh Y 121.5–145.5 of 110.5–145.5) | same |
+| socket depth | 20 mm at both ends (`Z = 20`, `Z = height − 20`, 168 mm² each) | same |
+| plate | 23.85 × 39.7 × 7 (23.70 across after the edge chamfer) | `post-joiner.stl` |
+| bolts | Ø3.2, 19.96 apart, Ø10.9 × 2 mm counterbores on one face | same |
+
+39.7 = 2 × 19.85 is exactly two 20 mm sockets, and 23.85 slides into the
+24 mm width, so the plate is a press-fit splice that disappears inside the
+post: two stacked segments leave a 40 mm cavity, one bolt lands 10 mm into
+each segment, and the only thing visible from outside is the slot on the
+post's inner face with the two recessed bolt heads. `rack-real.tsx` puts it
+there in the post's own frame (X −8 → −1 mm, Z −17.5 → +6.5 mm, four per
+joint) inside the same per-corner group the rails use, so the mirror/rotation
+maths is written once. Posts and joiners are separate part types: the joiner
+has its own swatch and its own eye icon in **Parts**, and the parts export
+follows that swatch instead of borrowing the post colour.
+
+Verified with `trimesh` rather than eyeballed: the prepared plate lands at
+`[[−8, 202.4, −17.42], [−1, 242.1, 6.42]]` against a seam at 222.25, inside the
+socket's `[[−8, 202.25, −17.5], [−1, 242.25, 6.5]]`, and **0 of 31,680** plate
+samples fall inside either neighbouring rail. The counterbored face (raw +Z,
+Ø10.9 at 2 mm deep) ends up on local +X after the +90° about Y — the open side
+of the socket, which faces the rack interior at all four corners, so the bolt
+heads stay reachable from inside the assembled rack.
+
+The plate is 7 mm thick all over: the earlier "5 mm body + 2 mm flange"
+reading was wrong, as the area drop above `Z = 5` is the two counterbores
+(2 × ~61 mm²), not a flange.
 
 Status falls back to `download` if `JOINER_FILE` is ever emptied again: the row
 still appears in the manifest, CSV, workbook and checklist under **Printed, but
