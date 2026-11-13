@@ -209,8 +209,8 @@ export async function exportStlBundle(
   onProgress?: (progress: BundleProgress) => void,
 ): Promise<void> {
   try {
-    const { bytes, filename } = await buildInWorker(state, onProgress)
-    download(new Blob([bytes], { type: 'application/zip' }), filename)
+    const { blob, filename } = await buildInWorker(state, onProgress)
+    download(blob, filename)
   } catch (err) {
     // Only the "worker could not start" case falls back: a worker that ran and
     // reported a problem has a real error worth showing, and rebuilding the
@@ -227,7 +227,7 @@ interface WorkerReply {
   done?: number
   total?: number
   file?: string
-  bytes?: ArrayBuffer
+  blob?: Blob
   filename?: string
   message?: string
 }
@@ -239,7 +239,7 @@ interface WorkerReply {
 function buildInWorker(
   state: BuildState,
   onProgress?: (progress: BundleProgress) => void,
-): Promise<{ bytes: ArrayBuffer; filename: string }> {
+): Promise<{ blob: Blob; filename: string }> {
   return new Promise((resolve, reject) => {
     let worker: Worker
     try {
@@ -264,8 +264,10 @@ function buildInWorker(
         onProgress?.({ done: reply.done ?? 0, total: reply.total ?? 0, file: reply.file ?? '' })
         return
       }
-      if (reply.type === 'done' && reply.bytes && reply.filename) {
-        finish(() => resolve({ bytes: reply.bytes as ArrayBuffer, filename: reply.filename as string }))
+      if (reply.type === 'done' && reply.blob && reply.filename) {
+        const blob = reply.blob
+        const filename = reply.filename
+        finish(() => resolve({ blob, filename }))
         return
       }
       finish(() =>

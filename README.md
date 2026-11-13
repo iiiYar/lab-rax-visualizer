@@ -249,6 +249,38 @@ joiner is derived, not typed in: `buildPartsList` adds it with the same
 `joinerCount` the manifest uses, so a parts export cannot list eight rails for
 a 12U rack and stay silent about the eight joiners that hold them together.
 
+### The archive is built in a worker, on purpose
+
+`src/export/export-stl-bundle.ts` builds the bundle and downloads it;
+`src/export/zip-worker.ts` is the thread it runs on. Keep it that way.
+
+Fetching ~11 MB of mesh, hashing it and deflating the zip on the page thread
+used to starve the renderer: on a build with the Mini-ITX shelves the button sat
+at "Zipping 10/10" and no download ever fired, while the exact same work took
+under a second in Node and half a second in a blank page. The scene, not JSZip,
+was the problem — so the work moved to its own thread with its own heap, which
+also means the viewer keeps painting during the export. Measured on the 8U
+build with both shelves: per-file fetch + hash ~0.4 s total, `generateAsync`
+~0.7 s, 3,021,733 bytes out, and `sha256sum -c` verifies all 11 files.
+
+Three things to know before editing this path:
+
+- `vite.config.ts` needs `worker: { format: 'es' }`. The worker imports JSZip
+  lazily, and Vite's default IIFE worker output cannot code-split — the build
+  fails with `Invalid value "iife" for option "output.format"`.
+- The worker returns a `Blob`, not an `ArrayBuffer`. Cloning an immutable Blob
+  is cheap; an `ArrayBuffer` would be copied again on the one thread that is
+  busy painting.
+- The main-thread path is a fallback for "the worker never started" (old
+  browser, CSP blocking `worker-src`) and nothing else. A worker that reported a
+  real error is re-thrown, because rebuilding the same archive inline would hang
+  the way it used to.
+
+`buildStlBundle(state, { baseUrl, fetchFile, onProgress })` stays callable
+outside the browser — pass `fetchFile` to read from disk and it builds the whole
+archive under Node in about a second, which is how the bundle is checked without
+a headless browser.
+
 ### Where the model files come from
 
 `src/domain/sources.ts` maps each file in `public/models-3d/` to where it came
@@ -476,6 +508,7 @@ correctly from any subpath.
 | Change what's in the parts-list export           | `src/domain/parts-list.ts`                                |
 | Change export file format/columns                | `src/export/export-csv.ts`, `src/export/export-xlsx.ts`    |
 | Change which files a part prints from / print status | `src/domain/print-files.ts`                            |
+| Change what goes into the STL archive / how it downloads | `src/export/export-stl-bundle.ts` (build + download) and `src/export/zip-worker.ts` (the thread it runs on) |
 | Adjust camera framing / lighting / ground grid    | `src/components/viewer/scene.tsx`                        |
 | Change how real parts are positioned/oriented    | `src/components/viewer/rack-real.tsx`, measured constants in `src/domain/models.ts` |
 | Add per-part click-to-edit (the stretch feature) | Start from `selectedPartId` in `use-build-store.ts` and the `onPointerMissed` plumbing already in `scene.tsx` |

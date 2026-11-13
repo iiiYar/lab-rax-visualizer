@@ -32,8 +32,10 @@ scope.onmessage = async (event: MessageEvent<ZipRequest>) => {
       baseUrl,
       onProgress: (p) => scope.postMessage({ type: 'progress', ...p }),
     })
-    const bytes = await blob.arrayBuffer()
-    scope.postMessage({ type: 'done', bytes, filename }, [bytes])
+    // Hand back the Blob itself: structured cloning an immutable Blob is cheap,
+    // while an ArrayBuffer would be copied again on the page thread — the one
+    // thread that is busy painting the rack.
+    scope.postMessage({ type: 'done', blob: new Blob([blob], { type: 'application/zip' }), filename })
   } catch (err) {
     scope.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) })
   }
