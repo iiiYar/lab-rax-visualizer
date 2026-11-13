@@ -10,6 +10,7 @@ export type PartType =
   | 'bottomPanel'
   | 'handles'
   | 'feet'
+  | 'joiners'
   | 'shelves'
 
 /** Parts that can be toggled on/off (the rest are always present). */

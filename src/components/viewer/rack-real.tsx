@@ -18,6 +18,7 @@ import {
   devicePartColor,
 } from '../../domain/models'
 import type { DeviceType, ShelfType } from '../../domain/types'
+import { JOINER_FILE } from '../../domain/print-files'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
 import type { PreparedGeometry } from './materials/use-model-geometry'
@@ -40,6 +41,10 @@ export function RackReal() {
   const rail4 = useStlPart(VERTICAL_RAIL_FILES[4])
   const rail5 = useStlPart(VERTICAL_RAIL_FILES[5])
   const railByLen = { 1: rail1, 2: rail2, 3: rail3, 4: rail4, 5: rail5 }
+  // The post joiner is drawn in the post's own frame: +90° about X lays the
+  // plate on its face (7 mm of thickness along Z, flange outward) and leaves
+  // its two holes ±10 mm along Y, i.e. facing the joint it straddles.
+  const joiner = useStlPart(JOINER_FILE, 0, PI / 2)
 
   const panel1 = useStlPart(SIDE_PANEL_FILES[1], SIDE_PANEL_EXTRA_ROT_Y)
   const panel2 = useStlPart(SIDE_PANEL_FILES[2], SIDE_PANEL_EXTRA_ROT_Y)
@@ -163,6 +168,32 @@ export function RackReal() {
   const railZByKey = { fl: frontRailZ, fr: frontRailZ, bl: backRailZ, br: backRailZ }
   const railXByKey = { fl: leftRailX, fr: rightRailX, bl: leftRailX, br: rightRailX }
 
+  // One transform per corner, carried by a group so that everything drawn on a
+  // post (its stacked segments, and the joiners at their joints) can be placed
+  // in the post's own frame instead of re-deriving the mirror/rotation maths
+  // for each part.
+  const cornerTransform = (c: (typeof corners)[number]) => ({
+    position: [
+      railXByKey[c.key as keyof typeof railXByKey],
+      0,
+      railZByKey[c.key as keyof typeof railZByKey],
+    ] as [number, number, number],
+    rotation: [0, c.railRotY, 0] as [number, number, number],
+    scale: (c.railMirror ? [-1, 1, 1] : undefined) as [number, number, number] | undefined,
+  })
+
+  // Height of every joint between stacked post segments, measured from the
+  // post's own bottom. Segments butt end to end on the U grid, so the last
+  // cumulative sum is the top of the post — a free end, not a joint.
+  const seamHeights: number[] = []
+  {
+    let y = WIDTH_RAIL_BAR_TOP_MM
+    for (let i = 0; i < segments.length - 1; i++) {
+      y += segments[i] * U_MM
+      seamHeights.push(y)
+    }
+  }
+
   // Same idea, for the depth rails (used by both the depth-rail render below
   // and the handles, which sit centered on the top depth rail's own X, not
   // the vertical rail's).
@@ -200,10 +231,8 @@ export function RackReal() {
       {visibility.verticalRails &&
         corners.map((c) => {
           let y = WIDTH_RAIL_BAR_TOP_MM
-          const railZ = railZByKey[c.key as keyof typeof railZByKey]
-          const railX = railXByKey[c.key as keyof typeof railXByKey]
           return (
-            <Fragment key={`rail-${c.key}`}>
+            <group key={`rail-${c.key}`} {...cornerTransform(c)}>
               {segments.map((len, i) => {
                 const seg = railByLen[len as keyof typeof railByLen]
                 const mesh = (
@@ -211,17 +240,45 @@ export function RackReal() {
                     key={i}
                     geometry={seg.geometry}
                     color={parts.verticalRails.color}
-                    position={[railX, y, railZ]}
-                    rotation={[0, c.railRotY, 0]}
-                    scale={c.railMirror ? [-1, 1, 1] : undefined}
+                    position={[0, y, 0]}
                   />
                 )
                 y += len * U_MM
                 return mesh
               })}
-            </Fragment>
+            </group>
           )
         })}
+
+      {/* Post joiners: the printed splice plate that holds stacked post
+          segments together — one per post per joint, so four per seam.
+
+          Placement is read off the meshes, not guessed. The plate measures
+          23.85 × 39.7 and is 7 mm thick (5 mm body against the post, 2 mm
+          flange outside it); its two Ø3.2 through-holes are 19.96 mm apart,
+          centred on the plate, with Ø10.9 flange counterbores on the outer
+          face. That pitch is two 10 mm setbacks — and stacked segments butt
+          on the U grid — so the plate straddles the joint with one bolt each
+          side of it: Y = seam ± 10.
+
+          Face: the post's own +Z face, which is outward at all four corners
+          once the corner transform is applied, and stays clear of the side
+          panels (they sit 1 mm inside that same envelope edge). The posts
+          carry no matching bolt holes in the STL — they take brass inserts —
+          so the joint seam is the anchor we actually have. */}
+      {visibility.joiners &&
+        corners.map((c) => (
+          <group key={`joiner-${c.key}`} {...cornerTransform(c)}>
+            {seamHeights.map((seam) => (
+              <RealMesh
+                key={seam}
+                geometry={joiner.geometry}
+                color={parts.joiners.color}
+                position={[0, seam, rail1.size.z / 2]}
+              />
+            ))}
+          </group>
+        ))}
 
       {/* Side panels: same segment stacking, left/right only. Bottom edge is
           set 3mm below the bottom depth rails' top edge (depthRail.size.y —

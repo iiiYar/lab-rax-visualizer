@@ -20,6 +20,7 @@ const BASE_COLORS: Record<PartType, string> = {
   bottomPanel: '#20242b',
   handles: '#1a1d22',
   feet: '#1a1d22',
+  joiners: '#5a6270',
   shelves: '#5a6270',
 }
 

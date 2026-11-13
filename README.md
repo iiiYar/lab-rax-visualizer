@@ -340,6 +340,23 @@ joiner drawn from a description is a joiner that does not fit the posts. The
 pack offers a brass-insert variant (shipped here, matching the rest of the
 frame) and a bolted 3MF for the bolted kit.
 
+It is also drawn, at every joint, from those measurements rather than by eye.
+The plate is 23.85 × 39.7 and 7 mm thick (5 mm body, 2 mm flange outside), and
+its two Ø3.2 through-holes sit 19.96 mm apart — a 10 mm setback each side of
+the joint, which is why it straddles the seam at `Y = seam ± 10`. `rack-real.tsx`
+places it in the post's own frame (X ±11.925; Z 17.5 → 24.5 against the post
+face) inside the same per-corner group the rails use, so the mirror/rotation
+maths is written once. Posts and joiners are now separate part types: the
+joiner has its own swatch and its own eye icon in **Parts**, and the parts
+export follows that swatch instead of borrowing the post colour.
+
+Verified with `trimesh` rather than eyeballed: the plate's body face lands
+flush on the post's front face, and **0 of 776** joiner vertices fall inside the
+rail. The posts carry no matching bolt holes — they take heat-set brass inserts
+— so the joint seam, not a hole pattern, is what anchors the plate. It faces
+outward at all four corners and stays clear of the side panels, which sit 1 mm
+inside that same envelope edge.
+
 Status falls back to `download` if `JOINER_FILE` is ever emptied again: the row
 still appears in the manifest, CSV, workbook and checklist under **Printed, but
 not in this archive** with the count and the model page, and stays out of the

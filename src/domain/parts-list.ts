@@ -72,8 +72,10 @@ export function buildPartsList(state: BuildState): PartRow[] {
   const joiners = joinerCount(state.rackU)
   if (joiners > 0) {
     rows.push({
-      part: 'Post joiner',
-      color: parts.verticalRails.color,
+      part: PART_LABELS.joiners,
+      // The joiner has its own swatch in the UI, so the export has to follow
+      // that style rather than borrow the post colour.
+      color: parts.joiners.color,
       pattern: '—',
       solid: '—',
       quantity: joiners,

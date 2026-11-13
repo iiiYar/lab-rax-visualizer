@@ -28,6 +28,7 @@ export const PART_TYPES: PartType[] = [
   'bottomPanel',
   'handles',
   'feet',
+  'joiners',
   'shelves',
 ]
 
@@ -41,6 +42,7 @@ export const PART_LABELS: Record<PartType, string> = {
   bottomPanel: 'Bottom panel',
   handles: 'Handles',
   feet: 'Feet',
+  joiners: 'Post joiners',
   shelves: 'Shelves',
 }
 
