@@ -229,7 +229,18 @@ export const SIDE_PANEL_LIP_MM = 5.9
 // Corner-to-corner spacing, derived from measured part envelopes. Matches the
 // 222mm "usable width between posts" from the Lab Rax reference article.
 export const RACK_WIDTH_MM = 222
-export const RACK_DEPTH_MM = 180
+// Depth between the front and back width-rail centres, fixed by three parts
+// that all have to meet the posts (measured on the meshes):
+// - posts (rail-height-*.stl, 35 mm deep) sit flush with the width rail's
+//   54.85 mm depth, so post centre = ±(depth/2 + 54.85/2 − 35/2);
+// - each segment end has a joint socket whose back wall is 6.5 mm and whose
+//   M6 insert hole is 5 mm from the post centre towards the rack's front/back;
+// - the long joiner brace (joiner-brass-insert-PETG.3mf) is 217.7 mm with
+//   holes 194.9 mm apart, and the depth rail (rail-depth.stl) is 170 mm.
+// At 185: socket walls 217.85 apart (brace 217.7), holes 194.85 (194.9),
+// post inner faces 169.85 (depth rail 170). At the old 180 all three were
+// ~5 mm short. See geometry.test.ts.
+export const RACK_DEPTH_MM = 185
 export const RACK_HALF_WIDTH_MM = RACK_WIDTH_MM / 2
 export const RACK_HALF_DEPTH_MM = RACK_DEPTH_MM / 2
 

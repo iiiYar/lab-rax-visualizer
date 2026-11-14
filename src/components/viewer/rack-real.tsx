@@ -77,6 +77,8 @@ export function RackReal() {
   // 11.5 mm from the socket's back wall, axis across the post — the brace's
   // holes are 11.4 mm from its ends, ±9.96 mm from its centre line, 194.9 mm
   // apart, axis through its thickness. So one brace per side per joint.
+  // With RACK_DEPTH_MM = 185 the brace meets both socket back walls (217.85
+  // apart) and both insert holes (194.85 apart) — see geometry.test.ts.
   const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
   // View-only STL of the 3MF's own joiner mesh (3D/Objects/object_18.model,
   // one of the two copies on the plate); the archive still ships the 3MF.
