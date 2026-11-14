@@ -40,7 +40,7 @@ export type ShelfU = 1 | 2 | 3 | 4
 
 /**
  * Which post-joiner file the build ships. `short` is the 39.7 mm splice plate
- * from the extension pack; `long` is the designer's 217.7 mm brass-insert
+ * from the extension pack; `long` is the owner-supplied 217.7 mm brass-insert
  * version (the 3MF whose plate is named "long post joiner - brass insert
  * version"). Both fill the same joint; only the printed file changes.
  */

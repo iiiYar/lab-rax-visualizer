@@ -4,6 +4,7 @@ import type { BuildState } from '../domain/types'
 import {
   joinerCount,
   joinerFile,
+  joinerPrintSummary,
   printFiles,
   type PrintGroup,
   type PrintFile,
@@ -153,7 +154,7 @@ export function buildRequirements(state: BuildState): { item: string; value: str
       item: 'Post joiners to print',
       value:
         joiners > 0
-          ? `${joiners} × ${joinerFile(state.joinerModel)}`
+          ? joinerPrintSummary(state.joinerModel, joiners)
           : 'none — the posts are a single segment',
     },
     ...frameHardware(state.segments).map((h) => ({ item: h.item, value: h.qty })),

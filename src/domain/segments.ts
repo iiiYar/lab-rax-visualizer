@@ -89,5 +89,10 @@ export function isValidSegments(rackU: number, segments: unknown): segments is n
  * label.
  */
 export function normalizeSegments(rackU: number, segments: unknown): number[] {
-  return isValidSegments(rackU, segments) ? [...segments] : defaultSegments(rackU)
+  // Sorted largest-first: `segmentOptions` only offers non-increasing splits,
+  // so a hand-edited link carrying [2,5,5] must still light up the 5+5+2
+  // button and name its archive 12u-5-5-2, not a fourth, unlisted split.
+  return isValidSegments(rackU, segments)
+    ? [...segments].sort((a, b) => b - a)
+    : defaultSegments(rackU)
 }

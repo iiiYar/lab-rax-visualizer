@@ -341,14 +341,31 @@ export function joinerFile(model: JoinerModel): string {
   return model === 'long' ? LONG_JOINER_FILE : JOINER_FILE
 }
 
-/** One line per joiner choice, so the print list says which plate to print. */
-function joinerNote(model: JoinerModel, joints: number): string {
-  const jointText =
-    joints === 1 ? 'One joint above 5U' : `${joints} joints above 5U`
+/**
+ * `8 × post-joiner.stl` for the short plate; for the long 3MF, whose plate
+ * carries two joiners, `8 joiners — print joiner-…3mf ×4 (2 per plate)`. Used
+ * by the readme and the Requirements sheet so neither tells a maker to print
+ * the two-up plate once per joiner.
+ */
+export function joinerPrintSummary(model: JoinerModel, joiners: number): string {
   if (model === 'long') {
+    return `${joiners} joiners — print ${LONG_JOINER_FILE} ×${Math.ceil(joiners / 2)} (2 per plate)`
+  }
+  return `${joiners} × ${JOINER_FILE}`
+}
+
+/** One line per joiner choice, so the print list says which plate to print. */
+function joinerNote(model: JoinerModel, joints: number, joiners: number): string {
+  // "above 5U" was only true for 5+…; a 4+4+4 split has its joints at 4U and 8U.
+  const jointText = joints === 1 ? 'One joint' : `${joints} joints`
+  if (model === 'long') {
+    // The 3MF's plate already carries two joiners, so the quantity (joiners)
+    // is not the number of times to print the file.
+    const plates = Math.ceil(joiners / 2)
     return (
       `${jointText}, one joiner per post — four posts per joint. Long brass-insert ` +
-      'version: 217.7 mm against the short plate’s 39.7 mm, two per print plate, PETG.'
+      'version: 217.7 mm against the short plate’s 39.7 mm, PETG. The 3MF plate ' +
+      `holds two joiners: print it ${plates} ${plates === 1 ? 'time' : 'times'} for ${joiners}.`
     )
   }
   return (
@@ -410,7 +427,7 @@ export function printFiles(state: BuildState): PrintFile[] {
       quantity: joiners,
       status: 'print',
       group: 'frame',
-      note: joinerNote(state.joinerModel, joints),
+      note: joinerNote(state.joinerModel, joints, joiners),
     })
   }
 

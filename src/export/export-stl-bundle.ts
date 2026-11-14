@@ -6,7 +6,7 @@ import { REFERENCE_HASHES } from '../domain/sources'
 import { sha256Hex } from './sha256'
 import { buildSlug, segmentLabel, segmentTally } from '../domain/segments'
 import { frameHardware } from '../domain/sources'
-import { joinerCount, joinerFile } from '../domain/print-files'
+import { joinerCount, joinerPrintSummary } from '../domain/print-files'
 
 export interface BundleProgress {
   /** Files already added to the archive. */
@@ -106,7 +106,7 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
   for (const h of frameHardware(state.segments)) lines.push(`  - ${h.item} — ${h.qty}`)
   if (joiners > 0) {
     lines.push(
-      `  - Post joiners to print: ${joiners} × ${joinerFile(state.joinerModel)} ` +
+      `  - Post joiners to print: ${joinerPrintSummary(state.joinerModel, joiners)} ` +
         `(${state.joinerModel === 'long' ? 'long brass-insert plate, 217.7 mm' : 'short brass-insert plate, 39.7 mm'})`,
     )
   }
