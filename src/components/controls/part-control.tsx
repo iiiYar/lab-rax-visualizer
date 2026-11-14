@@ -19,7 +19,7 @@ export function PartControl({ part }: { part: PartType }) {
   const segments = useBuildStore((s) => s.segments)
   const joinerModel = useBuildStore((s) => s.joinerModel)
   const setJoinerModel = useBuildStore((s) => s.setJoinerModel)
-  const joiners = part === 'joiners' ? joinerCount(segments) : 0
+  const joiners = part === 'joiners' ? joinerCount(segments, joinerModel) : 0
 
   return (
     <div

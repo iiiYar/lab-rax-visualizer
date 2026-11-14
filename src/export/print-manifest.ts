@@ -142,7 +142,7 @@ export function oversizeRows(rows: ManifestRow[], bedMm = 256): ManifestRow[] {
  */
 export function buildRequirements(state: BuildState): { item: string; value: string }[] {
   const joints = Math.max(0, state.segments.length - 1)
-  const joiners = joinerCount(state.segments)
+  const joiners = joinerCount(state.segments, state.joinerModel)
   return [
     { item: 'Rack height', value: `${state.rackU}U` },
     {
@@ -157,7 +157,7 @@ export function buildRequirements(state: BuildState): { item: string; value: str
           ? joinerPrintSummary(state.joinerModel, joiners)
           : 'none — the posts are a single segment',
     },
-    ...frameHardware(state.segments).map((h) => ({ item: h.item, value: h.qty })),
+    ...frameHardware(state.segments, state.joinerModel).map((h) => ({ item: h.item, value: h.qty })),
   ]
 }
 
@@ -300,8 +300,8 @@ export async function manifestXlsx(rows: ManifestRow[], state: BuildState): Prom
   summary.addRow(['Joints per post', Math.max(0, state.segments.length - 1), '', '', ''])
   summary.addRow([
     'Post joiners to print',
-    joinerCount(state.segments),
-    joinerCount(state.segments) > 0 ? joinerFile(state.joinerModel) : '—',
+    joinerCount(state.segments, state.joinerModel),
+    joinerCount(state.segments, state.joinerModel) > 0 ? joinerFile(state.joinerModel) : '—',
     '',
     '',
   ])
@@ -535,7 +535,7 @@ ${buildRequirements(state)
       <tr><th class="part">Item</th><th class="qty" style="text-align:left">Quantity</th></tr>
     </thead>
     <tbody>
-${frameHardware(state.segments).map((h) => `      <tr><td class="part">${escapeHtml(h.item)}</td><td class="note">${escapeHtml(h.qty)}</td></tr>`).join('\n')}
+${frameHardware(state.segments, state.joinerModel).map((h) => `      <tr><td class="part">${escapeHtml(h.item)}</td><td class="note">${escapeHtml(h.qty)}</td></tr>`).join('\n')}
     </tbody>
   </table>
 </section>`

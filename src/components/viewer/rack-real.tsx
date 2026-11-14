@@ -67,20 +67,19 @@ export function RackReal() {
   // faces the rack interior at all four corners (`corners` below), so the bolt
   // heads stay reachable from inside the assembled rack.
   //
-  // The Parts panel can ship the long (217.7 mm) brass-insert plate instead,
-  // and the viewer draws whichever one is picked. The long plate cannot go in
-  // the socket (39.7 mm wide against the socket's 24 mm), so it is drawn flat
-  // on the post's inner face (local −Z, the open side of the socket), centred
-  // on the seam with 108.85 mm on each segment. That placement is a display
-  // choice — the 3MF does not state where its plate sits on the post.
+  // The Parts panel can ship the long (217.7 mm) brass-insert plate instead.
+  // That one is not a per-post splice: it is a horizontal brace across the
+  // rack's width at each joint, front and back, taking the place of a width
+  // rail there. 217.7 mm fits between the posts (222 mm inner gap), 39.7 mm
+  // tall straddles the seam, and its four Ø6.4 holes sit in two pairs 20 mm
+  // apart — one hole above and one below the seam at each end (measured).
   const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
   // View-only STL of the 3MF's own joiner mesh (3D/Objects/object_18.model,
   // one of the two copies on the plate); the archive still ships the 3MF.
-  // Raw axes 217.7 × 39.7 × 7: rotZ stands the length up, rotY flips the
-  // thickness away from the post.
-  const longJoiner = useStlPart(LONG_JOINER_VIEW_FILE, PI, PI / 2, PI / 2)
+  // Raw axes 217.7 × 39.7 × 7 already read length × height × thickness once
+  // the Z-up bake is undone (extraRotX), counterbores on +Z = facing out.
+  const longJoiner = useStlPart(LONG_JOINER_VIEW_FILE, 0, PI / 2)
   const joinerModel = useBuildStore((s) => s.joinerModel)
-  const POST_HALF_DEPTH_MM = 35 / 2
   const JOINER_LENGTH_MM = 39.7
   // Socket centre in the post's own frame: 7 mm across, 1 mm in from the +X
   // face; 24 mm across the depth, flush with the −Z face.
@@ -297,30 +296,39 @@ export function RackReal() {
           the only thing visible from outside is the slot on the post's inner
           face and the two counterbored bolt heads 10 mm either side of the
           seam. */}
+      {/* Long joiner: one horizontal brace across the width per joint at the
+          front and one at the back, centred between the posts and flush with
+          the posts' outer face, counterbores outward. */}
       {visibility.joiners &&
+        joinerModel === 'long' &&
+        seamHeights.flatMap((seam) =>
+          (['front', 'back'] as const).map((side) => (
+            <RealMesh
+              key={`long-joiner-${side}-${seam}`}
+              geometry={longJoiner.geometry}
+              color={parts.joiners.color}
+              position={[
+                0,
+                seam - longJoiner.size.y / 2,
+                (side === 'front' ? 1 : -1) * (frontRailZ + rail1.size.z / 2 - longJoiner.size.z / 2),
+              ]}
+              rotation={[0, side === 'front' ? 0 : PI, 0]}
+            />
+          )),
+        )}
+
+      {visibility.joiners &&
+        joinerModel === 'short' &&
         corners.map((c) => (
           <group key={`joiner-${c.key}`} {...cornerTransform(c)}>
-            {seamHeights.map((seam) =>
-              joinerModel === 'long' ? (
-                <RealMesh
-                  key={seam}
-                  geometry={longJoiner.geometry}
-                  color={parts.joiners.color}
-                  position={[
-                    0,
-                    seam - longJoiner.size.y / 2,
-                    -POST_HALF_DEPTH_MM - longJoiner.size.z / 2,
-                  ]}
-                />
-              ) : (
-                <RealMesh
-                  key={seam}
-                  geometry={joiner.geometry}
-                  color={parts.joiners.color}
-                  position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
-                />
-              ),
-            )}
+            {seamHeights.map((seam) => (
+              <RealMesh
+                key={seam}
+                geometry={joiner.geometry}
+                color={parts.joiners.color}
+                position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
+              />
+            ))}
           </group>
         ))}
 

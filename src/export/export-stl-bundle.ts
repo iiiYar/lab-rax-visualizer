@@ -101,9 +101,9 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
 
   // The printed parts are only half the build: the screws and inserts are
   // bought. Listed here so the archive says what the split actually costs.
-  const joiners = joinerCount(state.segments)
+  const joiners = joinerCount(state.segments, state.joinerModel)
   lines.push('', 'YOU ALSO NEED (not printed, not in this archive)')
-  for (const h of frameHardware(state.segments)) lines.push(`  - ${h.item} — ${h.qty}`)
+  for (const h of frameHardware(state.segments, state.joinerModel)) lines.push(`  - ${h.item} — ${h.qty}`)
   if (joiners > 0) {
     lines.push(
       `  - Post joiners to print: ${joinerPrintSummary(state.joinerModel, joiners)} ` +

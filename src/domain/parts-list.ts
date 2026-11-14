@@ -107,7 +107,7 @@ export function buildPartsList(state: BuildState): PartRow[] {
   // rails for a 12U rack and stay silent about the eight joiners that hold
   // them together — the list has to be complete or it is a shopping list with
   // a hole in it.
-  const joiners = joinerCount(state.segments)
+  const joiners = joinerCount(state.segments, state.joinerModel)
   if (joiners > 0) {
     rows.push({
       part: PART_LABELS.joiners,

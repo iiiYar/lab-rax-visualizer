@@ -237,7 +237,23 @@ export const FRAME_HARDWARE = [
  * 4+4+4 have the same number of joints but different rails, and this list is
  * generated next to the rail list so both describe the same build.
  */
-export function frameHardware(segments: number[]): { item: string; qty: string }[] {
+export function frameHardware(
+  segments: number[],
+  model: 'short' | 'long' = 'short',
+): { item: string; qty: string }[] {
+  const joints = Math.max(0, segments.length - 1)
+  if (model === 'long' && joints > 0) {
+    // Long brace: two per joint (front + back), four Ø6.4 holes each — two
+    // either side of the seam at each end, 194.9 mm apart (measured).
+    const braces = joints * 2
+    return [
+      ...FRAME_HARDWARE,
+      {
+        item: 'Long joiner brace fixings: M6 × 10mm button-head screws + M6 brass inserts (8mm OD)',
+        qty: `${4 * braces} of each — 4 per brace (four Ø6.4 holes, Ø10.9 counterbores, measured on the mesh)`,
+      },
+    ]
+  }
   const joiners = joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
   return [
     ...FRAME_HARDWARE,

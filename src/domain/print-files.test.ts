@@ -35,11 +35,18 @@ describe('printFiles', () => {
     joinerModel: 'long' as const,
   }
 
-  it('lists the long joiner with one per post per joint', () => {
+  it('lists the long joiner as a front + back brace per joint', () => {
     const rows = printFiles(build)
     const joiner = rows.find((r) => r.file === LONG_JOINER_FILE)
     expect(joiner).toBeDefined()
-    expect(joiner?.quantity).toBe(8)
+    expect(joiner?.quantity).toBe(4)
+  })
+
+  it('counts long braces two per joint, short plates four', () => {
+    expect(joinerCount([5, 5, 2], 'long')).toBe(4)
+    expect(joinerCount([5, 3], 'long')).toBe(2)
+    expect(joinerCount([5], 'long')).toBe(0)
+    expect(joinerCount([5, 5, 2], 'short')).toBe(8)
   })
 
   it('lists a height rail row for each segment length', () => {

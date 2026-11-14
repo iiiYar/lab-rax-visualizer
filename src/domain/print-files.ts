@@ -315,7 +315,11 @@ const DEVICE_NOTES: Partial<Record<DeviceType, string>> = {
  * same 12U stacked 4+4+4 also needs 8 — the count follows the number of
  * segments, which is why this takes the split rather than the height.
  */
-export function joinerCount(segments: number[]): number {
+export function joinerCount(segments: number[], model: JoinerModel = 'short'): number {
+  // The long plate is not a per-post splice: it is a horizontal brace across
+  // the width, between the two posts, at the joint — one at the front and one
+  // at the back, so two per joint instead of four.
+  if (model === 'long') return Math.max(0, segments.length - 1) * 2
   return joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
 }
 
@@ -365,8 +369,8 @@ function joinerNote(model: JoinerModel, joints: number, joiners: number): string
     // is not the number of times to print the file.
     const plates = Math.ceil(joiners / 2)
     return (
-      `${jointText}, one joiner per post — four posts per joint. Long brass-insert ` +
-      'version: 217.7 mm against the short plate’s 39.7 mm, PETG. The 3MF plate ' +
+      `${jointText}, a horizontal brace across the width at each joint — front and ` +
+      'back, two per joint. 217.7 mm, fits between the posts, four M6 holes; PETG. The 3MF plate ' +
       `holds two joiners: print it ${plates} ${plates === 1 ? 'time' : 'times'} for ${joiners}.`
     )
   }
@@ -420,7 +424,7 @@ export function printFiles(state: BuildState): PrintFile[] {
     for (const f of printFilesForPart(state, part)) add(f)
   }
 
-  const joiners = joinerCount(state.segments)
+  const joiners = joinerCount(state.segments, state.joinerModel)
   if (joiners > 0) {
     const joints = state.segments.length - 1
     add({
