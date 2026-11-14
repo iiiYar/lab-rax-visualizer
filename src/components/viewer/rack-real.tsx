@@ -68,17 +68,23 @@ export function RackReal() {
   // heads stay reachable from inside the assembled rack.
   //
   // The Parts panel can ship the long (217.7 mm) brass-insert plate instead.
-  // That one is not a per-post splice: it is a horizontal brace across the
-  // rack's width at each joint, front and back, taking the place of a width
-  // rail there. 217.7 mm fits between the posts (222 mm inner gap), 39.7 mm
-  // tall straddles the seam, and its four Ø6.4 holes sit in two pairs 20 mm
-  // apart — one hole above and one below the seam at each end (measured).
+  // It is a horizontal brace from the front post to the back post on each
+  // side, its two ends seated in the same sockets the short plate uses
+  // (measured on rail-height-5u.stl): the socket is 7 mm across the post
+  // (= the brace's thickness), 24 mm deep, open towards the other post, and
+  // 20 mm tall at each segment end, so a joint leaves 40 mm for the brace's
+  // 39.7 mm height. Each segment has an M6 insert hole 10 mm from its end,
+  // 11.5 mm from the socket's back wall, axis across the post — the brace's
+  // holes are 11.4 mm from its ends, ±9.96 mm from its centre line, 194.9 mm
+  // apart, axis through its thickness. So one brace per side per joint.
   const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
   // View-only STL of the 3MF's own joiner mesh (3D/Objects/object_18.model,
   // one of the two copies on the plate); the archive still ships the 3MF.
-  // Raw axes 217.7 × 39.7 × 7 already read length × height × thickness once
-  // the Z-up bake is undone (extraRotX), counterbores on +Z = facing out.
-  const longJoiner = useStlPart(LONG_JOINER_VIEW_FILE, 0, PI / 2)
+  // Raw 217.7 × 39.7 × 7: undo the Z-up bake (extraRotX), then +90° about Y
+  // runs the length along depth and the thickness across the post, with the
+  // counterbored face on local +X — the socket's open side, like the short
+  // plate.
+  const longJoiner = useStlPart(LONG_JOINER_VIEW_FILE, PI / 2, PI / 2)
   const joinerModel = useBuildStore((s) => s.joinerModel)
   const JOINER_LENGTH_MM = 39.7
   // Socket centre in the post's own frame: 7 mm across, 1 mm in from the +X
@@ -296,26 +302,26 @@ export function RackReal() {
           the only thing visible from outside is the slot on the post's inner
           face and the two counterbored bolt heads 10 mm either side of the
           seam. */}
-      {/* Long joiner: one horizontal brace across the width per joint at the
-          front and one at the back, centred between the posts and flush with
-          the posts' outer face, counterbores outward. */}
+      {/* Long joiner: one brace per side per joint, drawn from the front
+          post's frame (its mirror handles the right side) in the socket
+          column (joinerX), centred on the seam and midway between the front
+          and back posts, so each end lands in its post's socket. */}
       {visibility.joiners &&
         joinerModel === 'long' &&
-        seamHeights.flatMap((seam) =>
-          (['front', 'back'] as const).map((side) => (
-            <RealMesh
-              key={`long-joiner-${side}-${seam}`}
-              geometry={longJoiner.geometry}
-              color={parts.joiners.color}
-              position={[
-                0,
-                seam - longJoiner.size.y / 2,
-                (side === 'front' ? 1 : -1) * (frontRailZ + rail1.size.z / 2 - longJoiner.size.z / 2),
-              ]}
-              rotation={[0, side === 'front' ? 0 : PI, 0]}
-            />
-          )),
-        )}
+        corners
+          .filter((c) => c.key === 'fl' || c.key === 'fr')
+          .map((c) => (
+            <group key={`long-joiner-${c.key}`} {...cornerTransform(c)}>
+              {seamHeights.map((seam) => (
+                <RealMesh
+                  key={seam}
+                  geometry={longJoiner.geometry}
+                  color={parts.joiners.color}
+                  position={[joinerX, seam - longJoiner.size.y / 2, -frontRailZ]}
+                />
+              ))}
+            </group>
+          ))}
 
       {visibility.joiners &&
         joinerModel === 'short' &&

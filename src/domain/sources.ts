@@ -243,7 +243,7 @@ export function frameHardware(
 ): { item: string; qty: string }[] {
   const joints = Math.max(0, segments.length - 1)
   if (model === 'long' && joints > 0) {
-    // Long brace: two per joint (front + back), four Ø6.4 holes each — two
+    // Long brace: two per joint (left + right side), four Ø6.4 holes each — two
     // either side of the seam at each end, 194.9 mm apart (measured).
     const braces = joints * 2
     return [

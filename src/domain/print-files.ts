@@ -316,9 +316,9 @@ const DEVICE_NOTES: Partial<Record<DeviceType, string>> = {
  * segments, which is why this takes the split rather than the height.
  */
 export function joinerCount(segments: number[], model: JoinerModel = 'short'): number {
-  // The long plate is not a per-post splice: it is a horizontal brace across
-  // the width, between the two posts, at the joint — one at the front and one
-  // at the back, so two per joint instead of four.
+  // The long plate is not a per-post splice: it is a horizontal brace from
+  // the front post to the back post, its ends in the two posts' sockets —
+  // one on the left side and one on the right, so two per joint, not four.
   if (model === 'long') return Math.max(0, segments.length - 1) * 2
   return joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
 }
@@ -369,8 +369,8 @@ function joinerNote(model: JoinerModel, joints: number, joiners: number): string
     // is not the number of times to print the file.
     const plates = Math.ceil(joiners / 2)
     return (
-      `${jointText}, a horizontal brace across the width at each joint — front and ` +
-      'back, two per joint. 217.7 mm, fits between the posts, four M6 holes; PETG. The 3MF plate ' +
+      `${jointText}, a horizontal brace front post to back post at each joint, ends ` +
+      'seated in the posts’ joint sockets — left and right, two per joint. 217.7 mm, four M6 holes; PETG. The 3MF plate ' +
       `holds two joiners: print it ${plates} ${plates === 1 ? 'time' : 'times'} for ${joiners}.`
     )
   }
