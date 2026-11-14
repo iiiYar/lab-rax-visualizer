@@ -26,9 +26,13 @@ export function decomposeIntoSegments(u: number): number[] {
  * panels stack from 1–5U segments, so a rack taller than 5U has
  * `segments - 1` joints. Shared by the print files and the hardware list so
  * the two counts cannot drift apart.
+ *
+ * Takes the split itself rather than the rack height: a 12U rack is 5+5+2 or
+ * 4+4+4 depending on what the maker picked, and while both splits have two
+ * joints, nothing here should assume the height decides the stacking.
  */
-export function joinerCountFor(rackU: number, posts: number): number {
-  return (decomposeIntoSegments(rackU).length - 1) * posts
+export function joinerCountFor(segments: number[], posts: number): number {
+  return Math.max(0, segments.length - 1) * posts
 }
 
 export const VERTICAL_RAIL_FILES: Record<number, string> = {

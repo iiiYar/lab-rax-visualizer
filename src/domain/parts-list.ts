@@ -9,7 +9,7 @@ import {
 } from './constants'
 import { DEVICE_TYPE_PARTS, SHELF_TYPE_FILES, devicePartColor } from './models'
 import { sourceFor } from './sources'
-import { JOINER_FILE, joinerCount, printFilesForPart } from './print-files'
+import { joinerCount, joinerFile, printFilesForPart } from './print-files'
 
 export interface PartRow {
   part: string
@@ -83,7 +83,7 @@ export function buildPartsList(state: BuildState): PartRow[] {
   // rails for a 12U rack and stay silent about the eight joiners that hold
   // them together — the list has to be complete or it is a shopping list with
   // a hole in it.
-  const joiners = joinerCount(state.rackU)
+  const joiners = joinerCount(state.segments)
   if (joiners > 0) {
     rows.push({
       part: PART_LABELS.joiners,
@@ -93,7 +93,9 @@ export function buildPartsList(state: BuildState): PartRow[] {
       pattern: '—',
       solid: '—',
       quantity: joiners,
-      files: [JOINER_FILE],
+      // Follows the joiner dropdown: whichever plate the build ships is the
+      // file this row names, so the parts list and the archive agree.
+      files: [joinerFile(state.joinerModel)],
     })
   }
 

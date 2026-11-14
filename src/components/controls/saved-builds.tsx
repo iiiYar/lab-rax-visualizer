@@ -18,7 +18,15 @@ import { buildShareUrl } from '../../share/url-state'
 
 function currentBuild(): BuildState {
   const s = useBuildStore.getState()
-  return { rackU: s.rackU, parts: s.parts, toggles: s.toggles, shelves: s.shelves, palette: s.palette }
+  return {
+    rackU: s.rackU,
+    segments: s.segments,
+    joinerModel: s.joinerModel,
+    parts: s.parts,
+    toggles: s.toggles,
+    shelves: s.shelves,
+    palette: s.palette,
+  }
 }
 
 export function SavedBuilds() {

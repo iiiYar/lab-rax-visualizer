@@ -1,5 +1,6 @@
 import { PART_LABELS, PART_MATERIALS, hasMaterialChoice, isOptional } from '../../domain/constants'
-import type { OptionalPart, PartMaterial, PartType } from '../../domain/types'
+import type { JoinerModel, OptionalPart, PartMaterial, PartType } from '../../domain/types'
+import { JOINER_FILE, LONG_JOINER_FILE, joinerCount } from '../../domain/print-files'
 import { useBuildStore } from '../../store/use-build-store'
 import { PalettePicker } from '../../ui/palette-picker'
 import { VisibilityToggle } from '../../ui/visibility-toggle'
@@ -15,6 +16,10 @@ export function PartControl({ part }: { part: PartType }) {
   const toggle = useBuildStore((s) => s.toggle)
   const visible = useBuildStore((s) => s.visibility[part])
   const toggleVisibility = useBuildStore((s) => s.toggleVisibility)
+  const segments = useBuildStore((s) => s.segments)
+  const joinerModel = useBuildStore((s) => s.joinerModel)
+  const setJoinerModel = useBuildStore((s) => s.setJoinerModel)
+  const joiners = part === 'joiners' ? joinerCount(segments) : 0
 
   return (
     <div
@@ -62,6 +67,25 @@ export function PartControl({ part }: { part: PartType }) {
           {style.material === 'acrylic' && (
             <span className="text-[10px] text-white/30">clear, tinted by color</span>
           )}
+        </div>
+      )}
+
+      {/* Post joiners ship as two different plates. The short one is the
+          designer's extension-pack part this app also draws; the long one is
+          the 217.7 mm brass-insert 3MF the owner supplied. Picking here changes
+          the exported file and the print row — not the 3D view. */}
+      {part === 'joiners' && joiners > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-white/40">Model</span>
+          <select
+            value={joinerModel}
+            onChange={(e) => setJoinerModel(e.target.value as JoinerModel)}
+            className="h-7 min-w-0 max-w-full rounded bg-black/40 px-1 text-xs text-white outline-none ring-1 ring-white/10 pointer-coarse:h-11"
+          >
+            <option value="short">Short plate — {JOINER_FILE} (39.7 mm)</option>
+            <option value="long">Long plate — {LONG_JOINER_FILE} (217.7 mm)</option>
+          </select>
+          <span className="text-[10px] text-white/30">{joiners} needed</span>
         </div>
       )}
     </div>

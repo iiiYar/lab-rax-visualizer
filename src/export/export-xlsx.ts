@@ -3,6 +3,7 @@ import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
 import { manifestRows, manifestTotals, STATUS_LABEL, sourceCellText } from './print-manifest'
 import { download } from './download'
+import { buildSlug, segmentLabel } from '../domain/segments'
 import { CHECK_OFF, linkCell, styleHeader, tickColumn, workbookBytes } from './xlsx-common'
 
 /**
@@ -34,7 +35,7 @@ export async function exportXlsx(state: BuildState): Promise<void> {
   wb.created = new Date()
 
   // --- Sheet 1: the shopping list ------------------------------------------
-  const ws = wb.addWorksheet(`Lab Rax ${state.rackU}U`, {
+  const ws = wb.addWorksheet(`Lab Rax ${state.rackU}U ${segmentLabel(state.segments)}`, {
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
   })
   ws.columns = [{ width: 6 }, { width: 30 }, { width: 32 }, { width: 12 }, { width: 14 }, { width: 16 }, { width: 6 }]
@@ -108,6 +109,6 @@ export async function exportXlsx(state: BuildState): Promise<void> {
   const bytes = await workbookBytes(wb)
   download(
     new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `lab-rax-${state.rackU}U-parts.xlsx`,
+    `lab-rax-${buildSlug(state.rackU, state.segments)}-parts.xlsx`,
   )
 }

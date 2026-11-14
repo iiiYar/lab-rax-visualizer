@@ -2,6 +2,7 @@ import type { BuildState } from './types'
 import { clampShelvesToRack } from './shelves'
 import { MAX_U, MIN_U } from './constants'
 import { makeDefaultBuild } from './defaults'
+import { normalizeSegments } from './segments'
 
 const STORAGE_KEY = 'lab-rax-saved-builds'
 const DIRTY_KEY = 'lab-rax-saved-builds-dirty'
@@ -47,6 +48,8 @@ function parseBuildList(parsed: unknown): SavedBuild[] {
     const s = b.state as Partial<BuildState>
     const rackU = clampU(typeof s.rackU === 'number' ? s.rackU : 6)
     const base = makeDefaultBuild()
+    const segments = normalizeSegments(rackU, s.segments)
+    const joinerModel = s.joinerModel === 'long' ? 'long' : 'short'
     const parts = { ...base.parts, ...(s.parts && typeof s.parts === 'object' ? s.parts : {}) }
     const toggles = { ...base.toggles, ...(s.toggles && typeof s.toggles === 'object' ? s.toggles : {}) }
     const shelves = Array.isArray(s.shelves) ? clampShelvesToRack(s.shelves as BuildState['shelves'], rackU) : base.shelves
@@ -54,7 +57,7 @@ function parseBuildList(parsed: unknown): SavedBuild[] {
     out.push({
       id: b.id,
       name: b.name,
-      state: { rackU, parts, toggles, shelves, palette },
+      state: { rackU, segments, joinerModel, parts, toggles, shelves, palette },
       savedAt: typeof b.savedAt === 'number' ? b.savedAt : Date.now(),
     })
   }

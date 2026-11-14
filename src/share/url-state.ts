@@ -2,6 +2,7 @@ import type { BuildState, Palette, PartStyle, PartType, Shelf } from '../domain/
 import { PALETTE_SIZE } from '../domain/types'
 import { MAX_U, MIN_U, PART_TYPES } from '../domain/constants'
 import { makeDefaultBuild } from '../domain/defaults'
+import { normalizeSegments } from '../domain/segments'
 
 // --- base64url helpers (URL-safe, no padding) --------------------------------
 function toBase64Url(str: string): string {
@@ -17,6 +18,10 @@ function fromBase64Url(b64url: string): string {
 export function encodeBuild(state: BuildState): string {
   const compact = {
     u: state.rackU,
+    // g = segment split ("grid"), j = joiner model. Short keys because this
+    // whole object is base64'd into the URL.
+    g: state.segments,
+    j: state.joinerModel,
     p: state.parts,
     t: state.toggles,
     s: state.shelves,
@@ -30,6 +35,8 @@ export function decodeBuild(param: string): BuildState | null {
   try {
     const raw = JSON.parse(fromBase64Url(param)) as {
       u?: unknown
+      g?: unknown
+      j?: unknown
       p?: unknown
       t?: unknown
       s?: unknown
@@ -39,6 +46,11 @@ export function decodeBuild(param: string): BuildState | null {
 
     const rackU =
       typeof raw.u === 'number' ? Math.max(MIN_U, Math.min(MAX_U, Math.round(raw.u))) : base.rackU
+    // Links made before the split was selectable simply fall back to the
+    // standard stacking; a split that doesn't stack `rackU` is rejected too,
+    // rather than rendering a rack of the wrong height.
+    const segments = normalizeSegments(rackU, raw.g)
+    const joinerModel = raw.j === 'long' ? 'long' : 'short'
 
     // Merge parts defensively — keep defaults for any missing/invalid part.
     const parts = { ...base.parts }
@@ -86,7 +98,7 @@ export function decodeBuild(param: string): BuildState | null {
       palette = raw.c as Palette
     }
 
-    return { rackU, parts, toggles, shelves, palette }
+    return { rackU, segments, joinerModel, parts, toggles, shelves, palette }
   } catch {
     return null
   }

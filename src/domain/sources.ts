@@ -41,6 +41,12 @@ export interface PartSource {
 /** The owner's own STL, re-axed by a `tools/make-*.py` and nothing more — printable. */
 const ownerBuilt = (label: string): PartSource => ({ kind: 'owner', label })
 
+/**
+ * A file the owner supplied rather than one we fetched from a page we opened.
+ * No URL is claimed for these — the hash in `REFERENCE_HASHES` is the proof.
+ */
+const supplied = (label: string): PartSource => ({ kind: 'supplied', label })
+
 const mw = (modelId: string, label: string): PartSource => ({
   kind: 'makerworld',
   modelId,
@@ -116,6 +122,11 @@ export const FILE_SOURCES: Record<string, PartSource> = {
   'panel-side-5u.stl': LAB_RAX_SOURCES.postsPanels,
   // the joiner is not in the 5U kit: the designer sells it in the extension pack
   'post-joiner.stl': LAB_RAX_SOURCES.joiners,
+  // Long brass-insert joiner. Supplied as a file, and the 3MF carries no page
+  // link in its settings — so the page is not claimed, the bytes are hashed.
+  'joiner-brass-insert-PETG.3mf': supplied(
+    'long post joiner – brass insert version (supplied 3MF)',
+  ),
   // accessories
   ...ACCESSORY_SOURCES,
   'shelf-hdd-8bay-3u.stl': mw('2503273', '8-bay HDD enclosure'),
@@ -172,6 +183,10 @@ export const REFERENCE_HASHES: Record<string, FileHash> = {
     sha256: 'e1d71193a9601f2415d0df0e7bc33d8f0a6b6ac790d163c22460d3ced8a797fc',
     origin: 'Brass Insert Post Joiner.stl, extension pack 1304384',
   },
+  'joiner-brass-insert-PETG.3mf': {
+    sha256: 'c0ef22873eb752401577c68f852aaef67bdaca60b453e2d681b3bb22d00aa488',
+    origin: 'joiner-brass-insert-PETG.3mf, plate “long post joiner - brass insert version”, supplied 2026-11-14',
+  },
   'shelf-minitx-2u.stl': {
     sha256: '0e74ad0f00fd9d9bff3e97aa49a02762bbf2d467ed952dc2284fc3264e810037',
     origin: 'Mainboard_Mini_ITX.stl, page 1360827, supplied 2026-11-13',
@@ -211,21 +226,25 @@ export const FRAME_HARDWARE = [
 ] as const
 
 /**
- * Hardware for a specific rack: the designer's static frame list plus the
- * joiner fixings once the rack is stacked past 5U. The joiner fixings are not
+ * Hardware for a specific build: the designer's static frame list plus the
+ * joiner fixings once the posts are stacked past 5U. The joiner fixings are not
  * in the designer's bill of materials — they are inferred from the joiner mesh
  * (7 mm plate, 2 mm counterbore): two M6 × 10 screws and two M6 inserts per
  * joiner. Leaving them out would leave a tall build short at exactly the
  * joints that carry it.
+ *
+ * Takes the split, not the rack height: 12U stacked 5+5+2 and 12U stacked
+ * 4+4+4 have the same number of joints but different rails, and this list is
+ * generated next to the rail list so both describe the same build.
  */
-export function frameHardware(rackU: number): { item: string; qty: string }[] {
-  const joiners = joinerCountFor(rackU, BASE_QUANTITIES.verticalRails ?? 4)
+export function frameHardware(segments: number[]): { item: string; qty: string }[] {
+  const joiners = joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
   return [
     ...FRAME_HARDWARE,
     ...(joiners > 0
       ? [
           {
-            item: 'Post joiners: M6 × 10mm button-head screws + M6 brass inserts (8mm OD)',
+            item: 'Post joiner fixings: M6 × 10mm button-head screws + M6 brass inserts (8mm OD)',
             qty: `${2 * joiners} of each — 2 per joiner (inferred from the mesh: 7 mm plate, 2 mm counterbore)`,
           },
         ]

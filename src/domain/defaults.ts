@@ -9,6 +9,7 @@ import type {
 } from './types'
 import { DEFAULT_U, PART_TYPES } from './constants'
 import { defaultShelves } from './shelves'
+import { defaultSegments } from './segments'
 
 const BASE_COLORS: Record<PartType, string> = {
   horizontalEdges: '#2b2f36',
@@ -70,6 +71,8 @@ export function makeAllVisible(): PartVisibility {
 export function makeDefaultBuild(): BuildState {
   return {
     rackU: DEFAULT_U,
+    segments: defaultSegments(DEFAULT_U),
+    joinerModel: 'short',
     parts: structuredClone(DEFAULT_STYLES),
     toggles: { ...DEFAULT_TOGGLES },
     shelves: defaultShelves(DEFAULT_U),

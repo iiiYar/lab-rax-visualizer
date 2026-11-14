@@ -4,6 +4,9 @@ import { download } from './download'
 import { manifestCsv, manifestRows, manifestXlsx, printListHtml } from './print-manifest'
 import { REFERENCE_HASHES } from '../domain/sources'
 import { sha256Hex } from './sha256'
+import { buildSlug, segmentLabel, segmentTally } from '../domain/segments'
+import { frameHardware } from '../domain/sources'
+import { joinerCount, joinerFile } from '../domain/print-files'
 
 export interface BundleProgress {
   /** Files already added to the archive. */
@@ -40,7 +43,15 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
 
   const lines: string[] = [
     'Lab Rax Planner — printable STL bundle',
-    `Rack: ${state.rackU}U · ${printable.reduce((n, f) => n + f.quantity, 0)} printed parts · ${today}`,
+    `Rack: ${state.rackU}U · posts ${segmentLabel(state.segments)} · ` +
+      `${printable.reduce((n, f) => n + f.quantity, 0)} printed parts · ${today}`,
+    '',
+    'THIS BUILD’S SPLIT',
+    `  Posts and side panels stack ${segmentLabel(state.segments)} — ` +
+      `${segmentTally(state.segments)} per post, ${state.segments.length - 1} ` +
+      `${state.segments.length - 1 === 1 ? 'joint' : 'joints'}.`,
+    '  Another split of the same height is a different archive: the rail files',
+    '  and the print list change with it.',
     '',
     "WHAT'S IN HERE",
     '  frame/       structural parts: height rails, width/depth rails, post joiners,',
@@ -86,6 +97,18 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
   if (skipped.length > 0) {
     lines.push('', 'LISTED BUT NOT INCLUDED (source is not printable)')
     for (const f of skipped) lines.push(`  - ${f.part} (${f.file}): ${f.note ?? 'no printable source in this repo'}`)
+  }
+
+  // The printed parts are only half the build: the screws and inserts are
+  // bought. Listed here so the archive says what the split actually costs.
+  const joiners = joinerCount(state.segments)
+  lines.push('', 'YOU ALSO NEED (not printed, not in this archive)')
+  for (const h of frameHardware(state.segments)) lines.push(`  - ${h.item} — ${h.qty}`)
+  if (joiners > 0) {
+    lines.push(
+      `  - Post joiners to print: ${joiners} × ${joinerFile(state.joinerModel)} ` +
+        `(${state.joinerModel === 'long' ? 'long brass-insert plate, 217.7 mm' : 'short brass-insert plate, 39.7 mm'})`,
+    )
   }
 
   // Provenance comes last but reads first when something is wrong: a mismatched
@@ -149,7 +172,10 @@ export async function buildStlBundle(
   // maker actually asks for the archive, so it stays out of the first paint.
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
-  const root = zip.folder(`lab-rax-${state.rackU}U`)
+  // One archive per split: 12U stacked 5+5+2 and 12U stacked 4+4+4 carry
+  // different rail files and must not land on the same filename.
+  const slug = buildSlug(state.rackU, state.segments)
+  const root = zip.folder(`lab-rax-${slug}`)
   if (!root) throw new Error('Could not create the archive root.')
 
   const sums: string[] = []
@@ -191,7 +217,7 @@ export async function buildStlBundle(
     compressionOptions: { level: 6 },
   })
 
-  return { blob, filename: `lab-rax-${state.rackU}U-stl.zip` }
+  return { blob, filename: `lab-rax-${slug}-stl.zip` }
 }
 
 /**

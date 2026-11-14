@@ -1,13 +1,12 @@
-import type { BuildState, DeviceType, PartType, ShelfType } from './types'
+import type { BuildState, DeviceType, JoinerModel, PartType, ShelfType } from './types'
 import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel, shelfTypeU } from './constants'
-import { LAB_RAX_SOURCES, sourceFor, type PartSource } from './sources'
+import { sourceFor, type PartSource } from './sources'
 import {
   DEVICE_TYPE_PARTS,
   MODEL_FILES,
   SHELF_TYPE_FILES,
   SIDE_PANEL_FILES,
   VERTICAL_RAIL_FILES,
-  decomposeIntoSegments,
   joinerCountFor,
 } from './models'
 
@@ -71,6 +70,9 @@ const FILE_SIZES: Record<string, [number, number, number]> = {
   'panel-top-bottom.stl': [228.05, 171.5, 3],
   'panel-top-bottom-fan.stl': [228.05, 171.5, 3],
   'post-joiner.stl': [23.85, 39.7, 7],
+  // Measured on the 3MF's own mesh (3D/Objects/object_18.model), not the plate:
+  // the plate holds two copies 217.7 × 39.7 × 7 mm side by side.
+  'joiner-brass-insert-PETG.3mf': [217.7, 39.7, 7],
   'foot.3mf': [26, 26, 12],
   'handle.3mf': [20, 170, 32.5],
   // shelves
@@ -94,12 +96,12 @@ const FILE_SIZES: Record<string, [number, number, number]> = {
 
 /** Rails only exist in 1U–5U segments; a rack is stacked from them. */
 function segmentFiles(
-  rackU: number,
+  segments: number[],
   files: Record<number, string>,
   part: string,
   perRack: number,
 ): PrintFile[] {
-  return decomposeIntoSegments(rackU).map((u) => ({
+  return segments.map((u) => ({
     file: files[u],
     part: `${part} ${u}U`,
     quantity: perRack,
@@ -116,7 +118,8 @@ function segmentFiles(
  * the maker to the page holding the real panel, never a row that offers the
  * stand-in as a file to slice.
  */
-function sidePanelFiles(rackU: number, material: 'printed' | 'acrylic'): PrintFile[] {
+function sidePanelFiles(segments: number[], material: 'printed' | 'acrylic'): PrintFile[] {
+  const stacked = segments.length > 1
   const note =
     material === 'acrylic'
       ? "Acrylic option: cut from sheet, not printed — the size listed is this app's " +
@@ -136,14 +139,14 @@ function sidePanelFiles(rackU: number, material: 'printed' | 'acrylic'): PrintFi
         'pack (1304384, https://makerworld.com/en/models/1304384) for the panels ' +
         'meant for added segments.'
 
-  return decomposeIntoSegments(rackU).map((u) => ({
+  return segments.map((u) => ({
     file: SIDE_PANEL_FILES[u],
     part: `Side panel ${u}U`,
     quantity: BASE_QUANTITIES.sidePanels ?? 2,
     status: material === 'acrylic' ? 'source-only' : 'download',
     group: 'frame',
     u,
-    note: rackU > 5 ? `${note} ${stackNote}` : note,
+    note: stacked ? `${note} ${stackNote}` : note,
   }))
 }
 
@@ -152,14 +155,18 @@ function sidePanelFiles(rackU: number, material: 'printed' | 'acrylic'): PrintFi
  * greedy-stacked segments, so an 8U rack needs 5U + 3U rails, not an 8U rail.
  */
 export function printFilesForPart(state: BuildState, part: PartType): PrintFile[] {
-  const rackU = state.rackU
   const material = state.parts[part]?.material ?? 'printed'
 
   switch (part) {
     case 'verticalRails':
-      return segmentFiles(rackU, VERTICAL_RAIL_FILES, 'Height rail', BASE_QUANTITIES.verticalRails ?? 4)
+      return segmentFiles(
+        state.segments,
+        VERTICAL_RAIL_FILES,
+        'Height rail',
+        BASE_QUANTITIES.verticalRails ?? 4,
+      )
     case 'sidePanels':
-      return sidePanelFiles(rackU, material)
+      return sidePanelFiles(state.segments, material)
     case 'widthRails':
       return [
         {
@@ -304,10 +311,12 @@ const DEVICE_NOTES: Partial<Record<DeviceType, string>> = {
 /**
  * Rails and panels are stacked from 1–5U segments, so every rack taller than 5U
  * has at least one joint, and the designer's joiner is a printed part: one per
- * post, four posts. 8U stacks 5+3 → 4 joiners; 12U stacks 5+5+2 → 8.
+ * post, four posts. 8U stacks 5+3 → 4 joiners; 12U stacks 5+5+2 → 8, and the
+ * same 12U stacked 4+4+4 also needs 8 — the count follows the number of
+ * segments, which is why this takes the split rather than the height.
  */
-export function joinerCount(rackU: number): number {
-  return joinerCountFor(rackU, BASE_QUANTITIES.verticalRails ?? 4)
+export function joinerCount(segments: number[]): number {
+  return joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
 }
 
 /**
@@ -320,8 +329,33 @@ export function joinerCount(rackU: number): number {
  * the heat-set inserts the rest of the frame uses, and a bolted 3MF for the
  * bolted kit. This build is the insert one; the bolted variant is on the model
  * page for anyone running `1464819`.
+ *
+ * The long 3MF is the same idea stretched over 217.7 mm instead of 39.7 mm — a
+ * file the owner supplied, kept byte-for-byte (see REFERENCE_HASHES) and
+ * offered as a second choice for the joint rather than redrawn.
  */
 export const JOINER_FILE = 'post-joiner.stl'
+export const LONG_JOINER_FILE = 'joiner-brass-insert-PETG.3mf'
+
+export function joinerFile(model: JoinerModel): string {
+  return model === 'long' ? LONG_JOINER_FILE : JOINER_FILE
+}
+
+/** One line per joiner choice, so the print list says which plate to print. */
+function joinerNote(model: JoinerModel, joints: number): string {
+  const jointText =
+    joints === 1 ? 'One joint above 5U' : `${joints} joints above 5U`
+  if (model === 'long') {
+    return (
+      `${jointText}, one joiner per post — four posts per joint. Long brass-insert ` +
+      'version: 217.7 mm against the short plate’s 39.7 mm, two per print plate, PETG.'
+    )
+  }
+  return (
+    `${jointText}, one joiner per post — four posts per joint. ` +
+    'Brass-insert plate, from the extension pack.'
+  )
+}
 
 /**
  * Every file the current build references, flattened for the manifest and the
@@ -367,19 +401,16 @@ export function printFiles(state: BuildState): PrintFile[] {
     for (const f of printFilesForPart(state, part)) add(f)
   }
 
-  const joiners = joinerCount(state.rackU)
+  const joiners = joinerCount(state.segments)
   if (joiners > 0) {
-    const joints = decomposeIntoSegments(state.rackU).length - 1
+    const joints = state.segments.length - 1
     add({
-      file: JOINER_FILE,
+      file: joinerFile(state.joinerModel),
       part: 'Post joiner',
       quantity: joiners,
       status: 'print',
       group: 'frame',
-      source: LAB_RAX_SOURCES.joiners,
-      note:
-        `${joints === 1 ? 'One joint' : `${joints} joints`} above 5U, one joiner per post — ` +
-        'four posts per joint. Brass-insert variant, from the extension pack.',
+      note: joinerNote(state.joinerModel, joints),
     })
   }
 

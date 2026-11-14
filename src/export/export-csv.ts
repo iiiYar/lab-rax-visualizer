@@ -1,6 +1,7 @@
 import type { BuildState } from '../domain/types'
 import { buildPartsList } from '../domain/parts-list'
 import { download } from './download'
+import { buildSlug } from '../domain/segments'
 
 const HEADER = ['Done', 'Part', 'File', 'Color', 'Pattern', 'Solid/Backplate', 'Qty']
 
@@ -30,6 +31,6 @@ export function exportCsv(state: BuildState): void {
   const csv = lines.join('\n')
   download(
     new Blob([csv], { type: 'text/csv;charset=utf-8' }),
-    `lab-rax-${state.rackU}U-parts.csv`,
+    `lab-rax-${buildSlug(state.rackU, state.segments)}-parts.csv`,
   )
 }

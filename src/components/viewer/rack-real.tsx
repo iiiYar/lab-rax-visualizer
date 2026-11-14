@@ -14,7 +14,6 @@ import {
   U_MM,
   VERTICAL_RAIL_FILES,
   WIDTH_RAIL_BAR_TOP_MM,
-  decomposeIntoSegments,
   devicePartColor,
 } from '../../domain/models'
 import type { DeviceType, ShelfType } from '../../domain/types'
@@ -28,6 +27,9 @@ const PI = Math.PI
 
 export function RackReal() {
   const rackU = useBuildStore((s) => s.rackU)
+  // The split the maker picked (5+5+2 vs 4+4+4 at 12U), already normalised to
+  // stack `rackU` exactly — the viewer draws that stacking, not a greedy one.
+  const segments = useBuildStore((s) => s.segments)
   const parts = useBuildStore((s) => s.parts)
   const toggles = useBuildStore((s) => s.toggles)
   const shelves = useBuildStore((s) => s.shelves)
@@ -64,6 +66,13 @@ export function RackReal() {
   // leaves its counterbored face on local +X: the open side of the socket, which
   // faces the rack interior at all four corners (`corners` below), so the bolt
   // heads stay reachable from inside the assembled rack.
+  //
+  // The Parts panel can ship the long (217.7 mm) brass-insert plate instead.
+  // This stays the short plate either way: 39.7 mm is the only joiner length
+  // this app can place from measurement (it fills the two 20 mm sockets
+  // exactly), and the long file's own fit into a joint is not something the
+  // mesh states. The dropdown changes what is exported and printed, not what
+  // is drawn.
   const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
   const JOINER_LENGTH_MM = 39.7
   // Socket centre in the post's own frame: 7 mm across, 1 mm in from the +X
@@ -161,7 +170,6 @@ export function RackReal() {
   }
 
   const totalHeight = rackU * U_MM
-  const segments = decomposeIntoSegments(rackU)
 
   const corners = [
     { key: 'fl', x: -RACK_HALF_WIDTH_MM, z: RACK_HALF_DEPTH_MM, railRotY: 0, railMirror: false },

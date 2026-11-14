@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware'
 import type {
   BuildState,
   DeviceType,
+  JoinerModel,
   OptionalPart,
   PartStyle,
   PartType,
@@ -13,6 +14,7 @@ import type {
 import { PALETTE_SIZE } from '../domain/types'
 import { MAX_U, MIN_U, PART_TYPES, shelfDeviceSlots, shelfTypeU } from '../domain/constants'
 import { DEFAULT_PALETTE, makeAllVisible, makeDefaultBuild } from '../domain/defaults'
+import { defaultSegments, normalizeSegments } from '../domain/segments'
 import {
   clampShelvesToRack,
   findFirstGap,
@@ -24,6 +26,10 @@ import { decodeBuild, readShareParam } from '../share/url-state'
 
 interface BuildActions {
   setRackU: (u: number) => void
+  /** Pick how the posts are stacked (e.g. 5+5+2 vs 4+4+4). Invalid splits are
+   * replaced by the standard one rather than trusted. */
+  setSegments: (segments: number[]) => void
+  setJoinerModel: (model: JoinerModel) => void
   setPartStyle: (part: PartType, patch: Partial<PartStyle>) => void
   setPaletteColor: (index: number, color: string) => void
   toggle: (part: OptionalPart) => void
@@ -84,8 +90,21 @@ export const useBuildStore = create<BuildStore>()(
           // middle as the rack grows, or off the bottom as it shrinks.
           const delta = rackU - s.rackU
           const shifted = s.shelves.map((sh) => ({ ...sh, startU: sh.startU + delta }))
-          return { rackU, shelves: clampShelvesToRack(shifted, rackU) }
+          // The split is per height: 5+5+2 means nothing at 7U. Keep it when it
+          // still stacks the new height exactly (12U -> 12U), otherwise fall
+          // back to the standard stacking so the rack is never drawn shorter or
+          // taller than its own label.
+          return {
+            rackU,
+            segments: normalizeSegments(rackU, s.segments),
+            shelves: clampShelvesToRack(shifted, rackU),
+          }
         }),
+
+      setSegments: (segments) =>
+        set((s) => ({ segments: normalizeSegments(s.rackU, segments) })),
+
+      setJoinerModel: (joinerModel) => set(() => ({ joinerModel })),
 
       setPartStyle: (part, patch) =>
         set((s) => ({
@@ -187,6 +206,8 @@ export const useBuildStore = create<BuildStore>()(
       loadBuild: (state) =>
         set(() => ({
           rackU: clampU(state.rackU),
+          segments: normalizeSegments(clampU(state.rackU), state.segments),
+          joinerModel: state.joinerModel === 'long' ? 'long' : 'short',
           parts: state.parts,
           toggles: state.toggles,
           shelves: clampShelvesToRack(state.shelves, clampU(state.rackU)),
@@ -208,6 +229,8 @@ export const useBuildStore = create<BuildStore>()(
       // Only persist the build itself, not transient UI selection state.
       partialize: (s): BuildState => ({
         rackU: s.rackU,
+        segments: s.segments,
+        joinerModel: s.joinerModel,
         parts: s.parts,
         toggles: s.toggles,
         shelves: s.shelves,
@@ -233,6 +256,9 @@ export const useBuildStore = create<BuildStore>()(
         return {
           ...current,
           ...p,
+          // Saved before a split was selectable -> standard stacking.
+          segments: normalizeSegments(rackU, p.segments ?? defaultSegments(rackU)),
+          joinerModel: p.joinerModel === 'long' ? 'long' : 'short',
           parts: mergeParts(current.parts, p.parts),
           toggles: { ...current.toggles, ...p.toggles },
           // Also backfills `shelfType` on shelves saved before that field
