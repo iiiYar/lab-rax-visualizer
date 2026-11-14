@@ -336,6 +336,8 @@ export function joinerCount(segments: number[]): number {
  */
 export const JOINER_FILE = 'post-joiner.stl'
 export const LONG_JOINER_FILE = 'joiner-brass-insert-PETG.3mf'
+/** Viewer-only STL of one joiner from the 3MF's mesh — never exported. */
+export const LONG_JOINER_VIEW_FILE = 'joiner-brass-insert-long.view.stl'
 
 export function joinerFile(model: JoinerModel): string {
   return model === 'long' ? LONG_JOINER_FILE : JOINER_FILE

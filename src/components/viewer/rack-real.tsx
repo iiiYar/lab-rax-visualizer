@@ -17,7 +17,7 @@ import {
   devicePartColor,
 } from '../../domain/models'
 import type { DeviceType, ShelfType } from '../../domain/types'
-import { JOINER_FILE } from '../../domain/print-files'
+import { JOINER_FILE, LONG_JOINER_VIEW_FILE } from '../../domain/print-files'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
 import type { PreparedGeometry } from './materials/use-model-geometry'
@@ -67,13 +67,20 @@ export function RackReal() {
   // faces the rack interior at all four corners (`corners` below), so the bolt
   // heads stay reachable from inside the assembled rack.
   //
-  // The Parts panel can ship the long (217.7 mm) brass-insert plate instead.
-  // This stays the short plate either way: 39.7 mm is the only joiner length
-  // this app can place from measurement (it fills the two 20 mm sockets
-  // exactly), and the long file's own fit into a joint is not something the
-  // mesh states. The dropdown changes what is exported and printed, not what
-  // is drawn.
+  // The Parts panel can ship the long (217.7 mm) brass-insert plate instead,
+  // and the viewer draws whichever one is picked. The long plate cannot go in
+  // the socket (39.7 mm wide against the socket's 24 mm), so it is drawn flat
+  // on the post's inner face (local −Z, the open side of the socket), centred
+  // on the seam with 108.85 mm on each segment. That placement is a display
+  // choice — the 3MF does not state where its plate sits on the post.
   const joiner = useStlPart(JOINER_FILE, PI / 2, PI / 2)
+  // View-only STL of the 3MF's own joiner mesh (3D/Objects/object_18.model,
+  // one of the two copies on the plate); the archive still ships the 3MF.
+  // Raw axes 217.7 × 39.7 × 7: rotZ stands the length up, rotY flips the
+  // thickness away from the post.
+  const longJoiner = useStlPart(LONG_JOINER_VIEW_FILE, PI, PI / 2, PI / 2)
+  const joinerModel = useBuildStore((s) => s.joinerModel)
+  const POST_HALF_DEPTH_MM = 35 / 2
   const JOINER_LENGTH_MM = 39.7
   // Socket centre in the post's own frame: 7 mm across, 1 mm in from the +X
   // face; 24 mm across the depth, flush with the −Z face.
@@ -293,14 +300,27 @@ export function RackReal() {
       {visibility.joiners &&
         corners.map((c) => (
           <group key={`joiner-${c.key}`} {...cornerTransform(c)}>
-            {seamHeights.map((seam) => (
-              <RealMesh
-                key={seam}
-                geometry={joiner.geometry}
-                color={parts.joiners.color}
-                position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
-              />
-            ))}
+            {seamHeights.map((seam) =>
+              joinerModel === 'long' ? (
+                <RealMesh
+                  key={seam}
+                  geometry={longJoiner.geometry}
+                  color={parts.joiners.color}
+                  position={[
+                    0,
+                    seam - longJoiner.size.y / 2,
+                    -POST_HALF_DEPTH_MM - longJoiner.size.z / 2,
+                  ]}
+                />
+              ) : (
+                <RealMesh
+                  key={seam}
+                  geometry={joiner.geometry}
+                  color={parts.joiners.color}
+                  position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
+                />
+              ),
+            )}
           </group>
         ))}
 
