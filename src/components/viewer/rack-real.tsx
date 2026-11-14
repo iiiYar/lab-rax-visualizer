@@ -16,7 +16,7 @@ import {
   WIDTH_RAIL_BAR_TOP_MM,
   devicePartColor,
 } from '../../domain/models'
-import type { DeviceType, ShelfType } from '../../domain/types'
+import type { DeviceType, PartType, ShelfType } from '../../domain/types'
 import { JOINER_FILE, LONG_JOINER_VIEW_FILE } from '../../domain/print-files'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
@@ -34,6 +34,19 @@ export function RackReal() {
   const toggles = useBuildStore((s) => s.toggles)
   const shelves = useBuildStore((s) => s.shelves)
   const visibility = useBuildStore((s) => s.visibility)
+  const selectPart = useBuildStore((s) => s.selectPart)
+  const selectedPartId = useBuildStore((s) => s.selectedPartId)
+
+  // Click-to-select for frame parts: clicking a mesh selects its PartType (the
+  // same key its control card uses) and the mesh shows the selected glow.
+  // Shelves and devices are not pickable.
+  const pick = (part: PartType) => ({
+    onClick: (e: { stopPropagation: () => void }) => {
+      e.stopPropagation()
+      selectPart(part)
+    },
+    selected: selectedPartId === part,
+  })
 
   // Hooks must run unconditionally, so load every possible segment length up
   // front (cheap: cached after first load) and pick from them below.
@@ -288,6 +301,7 @@ export function RackReal() {
                     geometry={seg.geometry}
                     color={parts.verticalRails.color}
                     position={[0, y, 0]}
+                    {...pick('verticalRails')}
                   />
                 )
                 y += len * U_MM
@@ -320,6 +334,7 @@ export function RackReal() {
                   geometry={longJoiner.geometry}
                   color={parts.joiners.color}
                   position={[joinerX, seam - longJoiner.size.y / 2, -frontRailZ]}
+                  {...pick('joiners')}
                 />
               ))}
             </group>
@@ -335,6 +350,7 @@ export function RackReal() {
                 geometry={joiner.geometry}
                 color={parts.joiners.color}
                 position={[joinerX, seam - JOINER_LENGTH_MM / 2, joinerZ]}
+                {...pick('joiners')}
               />
             ))}
           </group>
@@ -375,6 +391,7 @@ export function RackReal() {
                     material={parts.sidePanels.material}
                     position={[x, y, 0]}
                     rotation={[0, rotY, 0]}
+                    {...pick('sidePanels')}
                   />
                 )
                 y += len * U_MM
@@ -402,6 +419,7 @@ export function RackReal() {
         [
           {
             key: 'front-top',
+            part: 'widthRails',
             z: -RACK_HALF_DEPTH_MM,
             y: totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM,
             rotX: PI,
@@ -411,6 +429,7 @@ export function RackReal() {
           },
           {
             key: 'back-top',
+            part: 'heroEdge',
             z: RACK_HALF_DEPTH_MM,
             y: totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM,
             rotX: PI,
@@ -420,6 +439,7 @@ export function RackReal() {
           },
           {
             key: 'front-bottom',
+            part: 'widthRails',
             z: RACK_HALF_DEPTH_MM,
             y: 0,
             rotX: 0,
@@ -429,6 +449,7 @@ export function RackReal() {
           },
           {
             key: 'back-bottom',
+            part: 'widthRails',
             z: -RACK_HALF_DEPTH_MM,
             y: 0,
             rotX: 0,
@@ -446,6 +467,7 @@ export function RackReal() {
             color={r.color}
             position={[0, r.y, r.z]}
             rotation={[r.rotX, r.rotY, 0]}
+            {...pick(r.part)}
           />
         ))}
 
@@ -493,6 +515,7 @@ export function RackReal() {
               color={parts.horizontalEdges.color}
               position={[r.x, r.y, 0]}
               rotation={[r.rotX, r.rotY, 0]}
+              {...pick('horizontalEdges')}
             />
           ))
         })()}
@@ -514,6 +537,7 @@ export function RackReal() {
           color={parts.bottomPanel.color}
           material={parts.bottomPanel.material}
           position={[0, BOTTOM_PANEL_INSET_MM, 0]}
+          {...pick('bottomPanel')}
         />
       )}
       {toggles.topPanel && visibility.topPanel && (
@@ -523,6 +547,7 @@ export function RackReal() {
           material={parts.topPanel.material}
           position={[0, totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM - TOP_PANEL_INSET_MM, 0]}
           rotation={[PI, 0, 0]}
+          {...pick('topPanel')}
         />
       )}
 
@@ -545,6 +570,7 @@ export function RackReal() {
               c.z < 0 ? -DEPTH_RAIL_FOOT_HOLE_OFFSET_MM : DEPTH_RAIL_FOOT_HOLE_OFFSET_MM,
             ]}
             scale={[c.x < 0 ? -1 : 1, 1, c.z < 0 ? -1 : 1]}
+            {...pick('feet')}
           />
         ))}
 
@@ -562,12 +588,14 @@ export function RackReal() {
             geometry={handle.geometry}
             color={parts.handles.color}
             position={[rightDepthRailX, totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM, 0]}
+            {...pick('handles')}
           />
           <RealMesh
             geometry={handle.geometry}
             color={parts.handles.color}
             position={[leftDepthRailX, totalHeight + 2 * WIDTH_RAIL_BAR_TOP_MM, 0]}
             scale={[-1, 1, 1]}
+            {...pick('handles')}
           />
         </Fragment>
       )}

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { PART_LABELS, PART_MATERIALS, hasMaterialChoice, isOptional } from '../../domain/constants'
 import type { JoinerModel, OptionalPart, PartMaterial, PartType } from '../../domain/types'
 import { JOINER_FILE, LONG_JOINER_FILE, joinerCount } from '../../domain/print-files'
@@ -9,6 +10,15 @@ import { VisibilityToggle } from '../../ui/visibility-toggle'
 // parts with a flat color only, so there's no pattern preview to drive.
 export function PartControl({ part }: { part: PartType }) {
   const style = useBuildStore((s) => s.parts[part])
+  // Set when the part is clicked in the 3D view: the card highlights and
+  // scrolls itself into view (see the effect below).
+  const selected = useBuildStore((s) => s.selectedPartId === part)
+  useEffect(() => {
+    if (!selected) return
+    document
+      .getElementById(`part-card-${part}`)
+      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [selected, part])
   const setPartStyle = useBuildStore((s) => s.setPartStyle)
   const palette = useBuildStore((s) => s.palette)
   const optional = isOptional(part)
@@ -23,9 +33,10 @@ export function PartControl({ part }: { part: PartType }) {
 
   return (
     <div
+      id={`part-card-${part}`}
       className={`rounded-lg border border-white/5 bg-black/20 p-3 transition-opacity ${
         enabled ? '' : 'opacity-40'
-      }`}
+      } ${selected ? 'ring-2 ring-accent/60' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
