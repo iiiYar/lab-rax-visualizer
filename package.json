@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "verify": "tsc --noEmit && vitest run && vite build"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.0",
