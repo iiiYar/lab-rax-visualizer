@@ -331,8 +331,32 @@ joint, and each joint takes one printed **post joiner per post** — four per
 joint. That row is derived, not typed in:
 
 ```ts
-joinerCount(rackU) = (segments(rackU).length - 1) * 4   // 8U → 4, 12U → 8
+joinerCount(segments) = (segments.length - 1) * 4   // 8U 5+3 → 4, 12U 4+4+4 → 8
 ```
+
+### Which stacking: 12U is not one build
+
+Rail lengths stop at 5U, so a 12U rack can be stacked 5+5+2, 5+4+3 or 4+4+4.
+Those are three different bills of materials — not one BOM with a note — so
+the split is state (`segments` in `BuildState`), not something derived at the
+edge of the app:
+
+| split | height rails | segments | joints |
+| --- | --- | --- | --- |
+| 5+5+2 | 5U ×8, 2U ×4 | 3 | 2 |
+| 5+4+3 | 5U ×4, 4U ×4, 3U ×4 | 3 | 2 |
+| 4+4+4 | 4U ×12 | 3 | 2 |
+
+`segmentOptions()` offers only the stackings with the fewest segments: an extra
+segment means extra rails and extra joiners for the same height, never a
+cheaper build. The choice travels in saved builds and in the share URL (`g`,
+plus `j` for the joiner plate), and it names the exports —
+`lab-rax-12u-4-4-4-stl.zip`, `lab-rax-12u-4-4-4-parts.csv` — so two 12U builds
+cannot silently overwrite each other on the maker's disk. Inside the archive
+the readme opener, the print sheet heading and a **Requirements** sheet repeat
+the split and list the joiners, screws and inserts it needs, because none of
+those are printed and a print list alone will leave a build short at the
+joints.
 
 The joiner is not in the 5U kit — the designer ships it in the extension pack
 (1304384) — so it was the one frame part missing from this repo. It is now
@@ -340,6 +364,16 @@ The joiner is not in the 5U kit — the designer ships it in the extension pack
 joiner drawn from a description is a joiner that does not fit the posts. The
 pack offers a brass-insert variant (shipped here, matching the rest of the
 frame) and a bolted 3MF for the bolted kit.
+
+Two brass-insert plates are offered in **Parts → Post joiners → Model**: the
+designer's `post-joiner.stl` (39.7 mm — the one measured below, and the only
+one the 3D view draws) and `joiner-brass-insert-PETG.3mf` (217.7 mm, supplied
+by the owner on 2026-11-14, recorded by SHA-256
+`c0ef22873eb752401577c68f852aaef67bdaca60b453e2d681b3bb22d00aa488`). The long
+plate is recorded by hash only: it arrived as a file, so no model page is
+claimed for it, and its fit against the posts has not been measured here. The
+dropdown therefore changes the exported file and the print row, never the 3D
+view.
 
 It is also drawn, at every joint, from those measurements rather than by eye —
 and the measurements say the plate goes *inside* the post, not on it:
