@@ -55,9 +55,6 @@ export function buildPartsList(state: BuildState): PartRow[] {
   for (const part of fixed) {
     if (isOptional(part) && !toggles[part]) continue
 
-    const qty = BASE_QUANTITIES[part] ?? 0
-    if (qty <= 0) continue
-
     const style = parts[part]
     const pt = patternText(style.pattern, style.solid)
     const partFiles = printFilesForPart(state, part)
@@ -67,6 +64,33 @@ export function buildPartsList(state: BuildState): PartRow[] {
     const shippable = partFiles.filter((f) => f.status === 'print' || f.status === 'review')
     const downloadRow = partFiles.find((f) => f.status === 'download')
     const sourceUrl = downloadRow ? sourceFor(downloadRow.file).url : undefined
+
+    // Posts are stacked, so the height rails come in as many lengths as the
+    // split has segments — 12U stacked 5+5+2 is eight 5U rails and four 2U
+    // ones, not four rails. One row per length, with that length's own count,
+    // is the only form that is a usable shopping list; a single row saying
+    // "12" would leave the maker guessing which length.
+    if (part === 'verticalRails' && shippable.length > 0) {
+      // `printFilesForPart` emits one row per segment, so two 5U segments
+      // arrive as two ×4 rows. Sum them per file: 5+5+2 is eight 5U rails.
+      const byFile = new Map<string, number>()
+      for (const f of shippable) byFile.set(f.file, (byFile.get(f.file) ?? 0) + f.quantity)
+      for (const [file, quantity] of byFile) {
+        rows.push({
+          part: `${PART_LABELS[part]} — ${file.replace(/^rail-height-/, '').replace(/\.stl$/, '')}`,
+          color: style.color,
+          pattern: pt.pattern,
+          solid: pt.solid,
+          quantity,
+          files: [file],
+        })
+      }
+      continue
+    }
+
+    const qty = BASE_QUANTITIES[part] ?? 0
+    if (qty <= 0) continue
+
     rows.push({
       part: PART_LABELS[part],
       color: style.color,
