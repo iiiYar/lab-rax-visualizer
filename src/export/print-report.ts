@@ -604,11 +604,11 @@ export function printReportHtml(
         <label class="tick"><input type="checkbox" data-no="${n}" aria-label="${escapeHtml(T.printedAria)}: ${escapeHtml(r.part)}"></label>
         <div class="body">
           <div class="head"><span class="part">${plain}</span><span class="unit" dir="ltr">${escapeHtml(r.unit)}</span></div>
-          <div class="line"><code class="file" dir="ltr">${escapeHtml(r.file) || '—'}</code><span class="size" dir="ltr">${r.size ? `${escapeHtml(r.size)} ${T.mm}` : '—'}</span></div>
+          <div class="line"><code class="file" dir="ltr">${escapeHtml(r.file) || '—'}</code><span class="size">${r.size ? `<bdi dir="ltr">${escapeHtml(r.size)}</bdi> ${T.mm}` : '—'}</span></div>
           <div class="src">${sourceCell(r.source, ar)}</div>
           ${r.note ? `<p class="note">${tr(r.note)}</p>` : ''}
         </div>
-        <div class="qty">×${r.qty}</div>
+        <div class="qty" dir="ltr">×${r.qty}</div>
         <div class="status"><span class="pill ${cls}">${T[STATUS_KEY[r.status]]}</span></div>
       </li>`
   }
