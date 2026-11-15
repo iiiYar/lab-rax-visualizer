@@ -237,6 +237,14 @@ export const FRAME_HARDWARE = [
  * 4+4+4 have the same number of joints but different rails, and this list is
  * generated next to the rail list so both describe the same build.
  */
+/** The static list with the per-U line turned into this rack's total. */
+function frameBase(segments: number[]): { item: string; qty: string }[] {
+  const rackU = segments.reduce((a, b) => a + b, 0)
+  return FRAME_HARDWARE.map((h) =>
+    h.qty === '6 per rack unit' ? { item: h.item, qty: `${6 * rackU} — 6 per rack unit × ${rackU}U` } : { ...h },
+  )
+}
+
 export function frameHardware(
   segments: number[],
   model: 'short' | 'long' = 'short',
@@ -247,7 +255,7 @@ export function frameHardware(
     // either side of the seam at each end, 194.9 mm apart (measured).
     const braces = joints * 2
     return [
-      ...FRAME_HARDWARE,
+      ...frameBase(segments),
       {
         item: 'Long joiner brace fixings: M6 × 10mm button-head screws + M6 brass inserts (8mm OD)',
         qty: `${4 * braces} of each — 4 per brace (four Ø6.4 holes, Ø10.9 counterbores, measured on the mesh)`,
@@ -256,7 +264,7 @@ export function frameHardware(
   }
   const joiners = joinerCountFor(segments, BASE_QUANTITIES.verticalRails ?? 4)
   return [
-    ...FRAME_HARDWARE,
+    ...frameBase(segments),
     ...(joiners > 0
       ? [
           {

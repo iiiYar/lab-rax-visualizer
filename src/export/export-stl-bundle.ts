@@ -174,7 +174,7 @@ export async function buildStlBundle(
   const zip = new JSZip()
   // One archive per split: 12U stacked 5+5+2 and 12U stacked 4+4+4 carry
   // different rail files and must not land on the same filename.
-  const slug = buildSlug(state.rackU, state.segments)
+  const slug = buildSlug(state.rackU, state.segments, state.joinerModel)
   const root = zip.folder(`lab-rax-${slug}`)
   if (!root) throw new Error('Could not create the archive root.')
 

@@ -34,8 +34,15 @@ export function segmentTally(segments: number[]): string {
  * segment. Every split gets its own archive name so two 12U builds never
  * download as the same file.
  */
-export function buildSlug(rackU: number, segments: number[]): string {
-  return segments.length > 1 ? `${rackU}u-${segments.join('-')}` : `${rackU}u`
+export function buildSlug(
+  rackU: number,
+  segments: number[],
+  joinerModel: 'short' | 'long' = 'short',
+): string {
+  const base = segments.length > 1 ? `${rackU}u-${segments.join('-')}` : `${rackU}u`
+  // The long brace ships a different file and count than the short plate, so
+  // its archive must not download under the short build's name.
+  return segments.length > 1 && joinerModel === 'long' ? `${base}-long-joiner` : base
 }
 
 /**

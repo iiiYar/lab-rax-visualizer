@@ -31,6 +31,6 @@ export function exportCsv(state: BuildState): void {
   const csv = lines.join('\n')
   download(
     new Blob([csv], { type: 'text/csv;charset=utf-8' }),
-    `lab-rax-${buildSlug(state.rackU, state.segments)}-parts.csv`,
+    `lab-rax-${buildSlug(state.rackU, state.segments, state.joinerModel)}-parts.csv`,
   )
 }

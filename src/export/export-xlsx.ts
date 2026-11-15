@@ -109,6 +109,6 @@ export async function exportXlsx(state: BuildState): Promise<void> {
   const bytes = await workbookBytes(wb)
   download(
     new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
-    `lab-rax-${buildSlug(state.rackU, state.segments)}-parts.xlsx`,
+    `lab-rax-${buildSlug(state.rackU, state.segments, state.joinerModel)}-parts.xlsx`,
   )
 }

@@ -85,3 +85,11 @@ describe('normalizeSegments', () => {
     expect(normalizeSegments(7, [5, 5, 2])).toEqual([5, 2])
   })
 })
+
+describe('buildSlug with the long joiner', () => {
+  it('names the long-brace archive apart from the short one', () => {
+    expect(buildSlug(12, [5, 5, 2], 'long')).toBe('12u-5-5-2-long-joiner')
+    expect(buildSlug(12, [5, 5, 2], 'short')).toBe('12u-5-5-2')
+    expect(buildSlug(5, [5], 'long')).toBe('5u')
+  })
+})
