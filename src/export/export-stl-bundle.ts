@@ -2,6 +2,7 @@ import type { BuildState } from '../domain/types'
 import { printFiles, type PrintFile } from '../domain/print-files'
 import { download } from './download'
 import { manifestCsv, manifestRows, manifestXlsx, printListHtml } from './print-manifest'
+import { printReportHtml } from './print-report'
 import { REFERENCE_HASHES } from '../domain/sources'
 import { sha256Hex } from './sha256'
 import { buildSlug, segmentLabel, segmentTally } from '../domain/segments'
@@ -63,7 +64,8 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
     '  print-list.html  open this first — the checklist, grouped frame / shelves /',
     '                   accessories and ordered 1U upward, with a tick box per',
     '                   part and the piece count per file. Prints cleanly.',
-    '  manifest.xlsx    the same table for a spreadsheet, plus a Summary sheet',
+    '  print-list.ar.html  the same checklist in Arabic.',
+    '  manifest.xlsx   the same table for a spreadsheet, plus a Summary sheet',
     '                   with counts per group and per status.',
     '  manifest.csv     the same table as plain text, for scripts or grep.',
     '  SHA256SUMS.txt   one checksum per shipped file. Download the model from',
@@ -207,6 +209,7 @@ export async function buildStlBundle(
   // One ordered row set, three renderings — see print-manifest.ts.
   const rows = manifestRows(state)
   root.file('print-list.html', printListHtml(rows, state))
+  root.file('print-list.ar.html', printReportHtml(rows, state, 'ar'))
   root.file('manifest.xlsx', await manifestXlsx(rows, state))
   root.file('manifest.csv', manifestCsv(rows, state))
 
