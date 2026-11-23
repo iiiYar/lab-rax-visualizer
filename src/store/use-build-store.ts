@@ -12,7 +12,7 @@ import type {
   ShelfSide,
   ShelfType,
 } from '../domain/types'
-import { PALETTE_SIZE } from '../domain/types'
+import { PALETTE_SIZE, isCustomShelfType } from '../domain/types'
 import {
   MAX_U,
   MIN_U,
@@ -169,7 +169,8 @@ export const useBuildStore = create<BuildStore>()(
             shelfType === 'plate-1u' ||
             shelfType === 'plate-2u' ||
             shelfType === 'shelf-minitx-2u' ||
-            shelfType === 'shelf-minitx-gpu-3u'
+            shelfType === 'shelf-minitx-gpu-3u' ||
+            isCustomShelfType(shelfType)
           // Re-shape any fitted devices to the new type's own slots: devices
           // stay put where the new shelf still accepts them, and everything
           // else is dropped (a 1U plate has nowhere to put a fan). An empty
