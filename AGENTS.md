@@ -59,3 +59,9 @@ cd /docker/lab-rax-visualizer/repo && git pull --ff-only && cd .. && docker comp
 - Health: `GET /api/health` returns `{ ok, builds }`.
 - Live check after deploy: `python3 tools/smoke.py`
   (optional base URL argument; exits 1 on any failed check).
+
+## Shelves: rear side and owner uploads
+- Every shelf has `side` ('front' default, 'back'). Back shelves are the same mesh turned 180° about Y. Two shelves conflict when their rows overlap and they are on the same side, or their depths sum past `SHELF_USABLE_DEPTH_MM` (245.85) — see `shelvesConflict` in src/domain/shelves.ts.
+- Owner-uploaded shelves: ids `custom-<8 hex of sha256>`, catalog in `DATA_DIR/shelves.json`, files in `DATA_DIR/shelves/` (docker0: `/docker/lab-rax-visualizer/data/`). Writes need header `x-admin-password` = `ADMIN_PASSWORD` (docker0: `/docker/lab-rax-visualizer/.env`, 0600, passed through docker-compose). Empty password = uploads disabled (503).
+- API: `GET /api/shelves`, `GET /api/shelves/files/<file>`, `POST /api/admin/check`, `POST /api/shelves`, `PATCH|DELETE /api/shelves/<id>`.
+- The ZIP worker receives the catalog in its message; uploads go into `shelves/` and are hash-checked against the catalog sha256.
