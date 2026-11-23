@@ -87,12 +87,12 @@ export function ShelfEditor() {
           // Devices for this shelf (fans etc.) are edited in the Devices
           // section below — see DeviceEditor and SHELF_DEVICE_SLOTS.
           return (
-            <div key={shelf.id} className="flex items-center gap-2 rounded bg-black/30 p-2">
-              <span className="w-14 text-[10px] text-white/40">{rowLabel}</span>
+            <div key={shelf.id} className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded bg-black/30 p-2">
+              <span className="w-12 shrink-0 text-[10px] text-white/40">{rowLabel}</span>
               <select
                 value={shelf.shelfType}
                 onChange={(e) => setShelfType(shelf.id, e.target.value as ShelfType)}
-                className="h-7 rounded bg-black/40 px-1 text-xs text-white outline-none ring-1 ring-white/10 pointer-coarse:h-11"
+                className="h-7 min-w-0 flex-1 basis-32 rounded bg-black/40 px-1 text-xs text-white outline-none ring-1 ring-white/10 pointer-coarse:h-11"
               >
                 {options.map((t) => (
                   <option key={t.id} value={t.id}>
