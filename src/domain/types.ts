@@ -50,7 +50,7 @@ export type ShelfSide = 'front' | 'back'
 export type JoinerModel = 'short' | 'long'
 
 /** Real Lab Rax shelf parts, each modeled as its own fixed-size STL/3MF. */
-export type ShelfType =
+export type BuiltinShelfType =
   | 'plate-1u'
   | 'plate-2u'
   | 'shelf-open-1u'
@@ -65,6 +65,17 @@ export type ShelfType =
   | 'shelf-minitx-2u'
   | 'shelf-minitx-gpu-3u'
   | 'shelf-mx64-1u'
+
+/**
+ * A builtin shelf, or a shelf the owner uploaded: `custom-` plus the 8-hex id
+ * the server gives it (see domain/custom-shelves.ts for the catalog entry).
+ */
+export type ShelfType = BuiltinShelfType | `custom-${string}`
+
+/** True for an owner-uploaded shelf id (`custom-` + 8 lowercase hex). */
+export function isCustomShelfType(t: string): t is `custom-${string}` {
+  return /^custom-[0-9a-f]{8}$/.test(t)
+}
 
 /**
  * Devices that can be fitted *into* a shelf's own mounting slots (fans behind

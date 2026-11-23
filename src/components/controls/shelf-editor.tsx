@@ -7,8 +7,10 @@ import {
   sumUBySide,
   withShelfSide,
 } from '../../domain/shelves'
+import { isCustomShelfType } from '../../domain/types'
 import type { Shelf, ShelfSide, ShelfType } from '../../domain/types'
 import { useBuildStore } from '../../store/use-build-store'
+import { useCustomShelves } from '../../store/use-custom-shelves'
 import { PalettePicker } from '../../ui/palette-picker'
 
 const SIDES: { id: ShelfSide; label: string }[] = [
@@ -20,6 +22,7 @@ export function ShelfEditor() {
   const rackU = useBuildStore((s) => s.rackU)
   const palette = useBuildStore((s) => s.palette)
   const shelves = useBuildStore((s) => s.shelves)
+  const customs = useCustomShelves((s) => s.shelves)
   const setShelfType = useBuildStore((s) => s.setShelfType)
   const setShelfStyle = useBuildStore((s) => s.setShelfStyle)
   const setShelfSide = useBuildStore((s) => s.setShelfSide)
@@ -67,6 +70,15 @@ export function ShelfEditor() {
               t.id === shelf.shelfType ||
               t.u <= maxDownGrowth(shelves, shelf.id, topRow, side, t.depthMm),
           )
+          const customOptions = customs.filter(
+            (c) =>
+              c.id === shelf.shelfType ||
+              c.u <= maxDownGrowth(shelves, shelf.id, topRow, side, c.depthMm),
+          )
+          // A shelf whose owner upload was deleted keeps its id; show it so the
+          // select still has a value to display.
+          const orphanCustom =
+            isCustomShelfType(shelf.shelfType) && !customs.some((c) => c.id === shelf.shelfType)
           // Row numbers count down from the top of the rack (1 = topmost),
           // independent of `startU`'s bottom-up indexing.
           const topRowNum = rackU - topRow
@@ -87,6 +99,16 @@ export function ShelfEditor() {
                     {t.label}
                   </option>
                 ))}
+                {customOptions.length > 0 && (
+                  <optgroup label="Custom">
+                    {customOptions.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.label} ({c.u}U)
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {orphanCustom && <option value={shelf.shelfType}>{shelf.shelfType}</option>}
               </select>
 
               <div className="flex items-center gap-0.5" role="group" aria-label="Rail side">

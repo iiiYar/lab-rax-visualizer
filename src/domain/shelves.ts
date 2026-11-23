@@ -6,7 +6,9 @@ import {
   shelfTypeDepth,
   shelfTypeU,
 } from './constants'
+import { isCustomShelfType } from './types'
 import type { DeviceType, PartStyle, Shelf, ShelfSide, ShelfType, ShelfU } from './types'
+import { customShelf } from './custom-shelves'
 import { DEFAULT_STYLES } from './defaults'
 
 /** Which rails a shelf hangs on. Shelves saved before rear shelves are front. */
@@ -86,6 +88,9 @@ const VALID_SHELF_TYPES = new Set(SHELF_TYPES.map((t) => t.id))
  * `u` so old builds still render as something sensible instead of crashing.
  */
 export function normalizeShelfType(shelf: Shelf): ShelfType {
+  // A custom id is kept on its syntax alone: builds load before the owner's
+  // catalog arrives, and the shelf should still be there once it does.
+  if (isCustomShelfType(shelf.shelfType)) return shelf.shelfType
   if (shelf.shelfType && VALID_SHELF_TYPES.has(shelf.shelfType)) return shelf.shelfType
   if (shelf.solid) return shelf.u >= 2 ? 'plate-2u' : 'plate-1u'
   return 'shelf-open-1u'
@@ -114,7 +119,7 @@ export function normalizeShelfDevices(shelfType: ShelfType, devices: unknown): (
       out[2] = 'minitx-pcie-card'
       return out
     }
-    const def = SHELF_DEFAULT_DEVICES[shelfType]
+    const def = isCustomShelfType(shelfType) ? undefined : SHELF_DEFAULT_DEVICES[shelfType]
     if (def) {
       for (let i = 0; i < slots.length; i++) {
         if (slots[i].accepts.includes(def)) out[i] = def
@@ -252,7 +257,12 @@ export function clampShelvesToRack(shelves: Shelf[], rackU: number): Shelf[] {
     if (!Number.isFinite(shelf.startU) || !Number.isFinite(shelf.u)) continue
     if (shelf.startU < 0 || shelf.startU >= rackU) continue
     const shelfType = normalizeShelfType(shelf)
-    const u = shelfTypeU(shelfType)
+    // A custom shelf the catalog does not know yet keeps the U it was saved
+    // with (the catalog's U takes over once it loads), not the 1U fallback.
+    const u =
+      isCustomShelfType(shelfType) && !customShelf(shelfType)
+        ? (Number.isInteger(shelf.u) && shelf.u >= 1 && shelf.u <= 4 ? shelf.u : 1)
+        : shelfTypeU(shelfType)
     if (shelf.startU + u > rackU) continue
     const id = seenIds.has(shelf.id) ? `s${++maxId}` : shelf.id
     seenIds.add(id)

@@ -1,11 +1,17 @@
+import { useEffect } from 'react'
 import { AdPanel } from './components/layout/ad-panel'
 import { ControlsSheet } from './components/layout/controls-sheet'
 import { Header } from './components/layout/header'
 import { Sidebar } from './components/layout/sidebar'
 import { ViewportHint } from './components/layout/viewport-hint'
 import { Scene } from './components/viewer/scene'
+import { useCustomShelves } from './store/use-custom-shelves'
 
 export default function App() {
+  // The owner's shelf catalog is read once, when the app starts.
+  useEffect(() => {
+    void useCustomShelves.getState().load()
+  }, [])
   // min max used for responsive sizing
   return (
     <div className="grid h-full grid-cols-1 grid-rows-[auto_minmax(0,1fr)] overflow-hidden bg-[#0f1218]">

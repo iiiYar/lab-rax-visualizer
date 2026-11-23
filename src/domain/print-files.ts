@@ -1,5 +1,7 @@
-import type { BuildState, DeviceType, JoinerModel, PartType, ShelfType } from './types'
+import { isCustomShelfType } from './types'
+import type { BuildState, BuiltinShelfType, DeviceType, JoinerModel, PartType } from './types'
 import { BASE_QUANTITIES, deviceLabel, isOptional, shelfTypeLabel, shelfTypeU } from './constants'
+import { customShelf, customShelfFileName } from './custom-shelves'
 import { sourceFor, type PartSource } from './sources'
 import {
   DEVICE_TYPE_PARTS,
@@ -45,6 +47,11 @@ export interface PrintFile {
   u?: number
   /** Where the file came from — see domain/sources.ts. */
   source?: PartSource
+  /**
+   * Set on a row for an owner-uploaded shelf: its catalog id. Rows are merged
+   * per upload, not per file name, so two uploads that share a name stay apart.
+   */
+  customShelfId?: string
 }
 
 /**
@@ -268,7 +275,7 @@ export function printFilesForPart(state: BuildState, part: PartType): PrintFile[
  * Per-shelf-type print caveats. Only the two entries that need one are listed;
  * every other shelf file is sliced as-is.
  */
-const SHELF_NOTES: Partial<Record<ShelfType, { status: PrintStatus; note: string }>> = {
+const SHELF_NOTES: Partial<Record<BuiltinShelfType, { status: PrintStatus; note: string }>> = {
   'shelf-hdd-8bay-3u': {
     status: 'source-only',
     note:
@@ -389,7 +396,8 @@ export function printFiles(state: BuildState): PrintFile[] {
   const merged = new Map<string, PrintFile>()
 
   const add = (f: PrintFile) => {
-    const sizeMm = FILE_SIZES[f.file]
+    const sizeMm = f.sizeMm ?? FILE_SIZES[f.file]
+    const key = f.customShelfId ? `custom:${f.customShelfId}` : f.file
     const fileNote = FILE_NOTES[f.file]
     // A `download` row means the mesh here is a stand-in, so its status is final.
     const next: PrintFile = {
@@ -403,9 +411,9 @@ export function printFiles(state: BuildState): PrintFile[] {
         : {}),
       source: f.source ?? sourceFor(f.file),
     }
-    const existing = merged.get(f.file)
+    const existing = merged.get(key)
     if (!existing) {
-      merged.set(f.file, { ...next, sizeMm })
+      merged.set(key, { ...next, sizeMm })
       return
     }
     existing.quantity += next.quantity
@@ -438,6 +446,25 @@ export function printFiles(state: BuildState): PrintFile[] {
   }
 
   for (const shelf of state.shelves) {
+    if (isCustomShelfType(shelf.shelfType)) {
+      // An owner upload: one printable file from the catalog. An id the catalog
+      // does not know has no file to print, so it gets no row.
+      const custom = customShelf(shelf.shelfType)
+      if (!custom) continue
+      add({
+        file: customShelfFileName(custom),
+        part: custom.label,
+        quantity: 1,
+        status: 'print',
+        group: 'shelves',
+        u: custom.u,
+        sizeMm: custom.sizeMm,
+        customShelfId: custom.id,
+        note: `Added by the owner${custom.sourceUrl ? `, source: ${custom.sourceUrl}` : ''}`,
+        source: { kind: 'owner', label: 'Owner upload', url: custom.sourceUrl || undefined },
+      })
+      continue
+    }
     const note = SHELF_NOTES[shelf.shelfType]
     add({
       file: SHELF_TYPE_FILES[shelf.shelfType],

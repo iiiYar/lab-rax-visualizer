@@ -1,3 +1,4 @@
+import { isCustomShelfType } from './types'
 import type { BuildState, DeviceType, PartType, PatternId, ShelfType } from './types'
 import {
   BASE_QUANTITIES,
@@ -7,9 +8,17 @@ import {
   patternLabel,
   shelfTypeLabel,
 } from './constants'
+import { customShelf, customShelfFileName } from './custom-shelves'
 import { DEVICE_TYPE_PARTS, SHELF_TYPE_FILES, devicePartColor } from './models'
 import { sourceFor } from './sources'
 import { joinerCount, joinerFile, printFilesForPart } from './print-files'
+
+/** The printable file a shelf row names: the built-in model, or the owner's upload. */
+function shelfRowFiles(type: ShelfType): string[] {
+  if (!isCustomShelfType(type)) return [SHELF_TYPE_FILES[type]]
+  const custom = customShelf(type)
+  return custom ? [customShelfFileName(custom)] : []
+}
 
 export interface PartRow {
   part: string
@@ -144,7 +153,7 @@ export function buildPartsList(state: BuildState): PartRow[] {
       // For shelves the "solid" column describes the shelf face itself.
       solid: g.solid ? 'Solid' : 'Holed',
       quantity: g.count,
-      files: [SHELF_TYPE_FILES[g.type]],
+      files: shelfRowFiles(g.type),
     })
   }
 

@@ -8,6 +8,7 @@ import { sha256Hex } from './sha256'
 import { buildSlug, segmentLabel, segmentTally } from '../domain/segments'
 import { frameHardware } from '../domain/sources'
 import { joinerCount, joinerPrintSummary } from '../domain/print-files'
+import { customShelf, getCustomShelves } from '../domain/custom-shelves'
 
 export interface BundleProgress {
   /** Files already added to the archive. */
@@ -139,6 +140,23 @@ function readme(state: BuildState, files: PrintFile[], provenance: Provenance): 
 }
 
 /**
+ * Archive name for a row inside its folder. Two rows can share a file name (a
+ * builtin and an upload, or two uploads), so a repeat gets the upload's id
+ * before its extension instead of silently overwriting the first.
+ */
+function archiveName(entry: PrintFile, used: Set<string>): string {
+  let name = entry.file
+  if (used.has(`${entry.group}/${name}`)) {
+    const dot = name.lastIndexOf('.')
+    const stem = dot > 0 ? name.slice(0, dot) : name
+    const ext = dot > 0 ? name.slice(dot) : ''
+    name = `${stem}-${entry.customShelfId ?? 'copy'}${ext}`
+  }
+  used.add(`${entry.group}/${name}`)
+  return name
+}
+
+/**
  * Fetch every printable file the build needs, zip it with a manifest, and hand
  * the archive to the browser. Files are the same raw meshes the viewer loads,
  * so nothing is re-scaled or re-orientated on the way out.
@@ -160,6 +178,12 @@ export async function buildStlBundle(
       if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)
       return res.arrayBuffer()
     })
+  // Owner uploads are served by the API, not from models-3d/.
+  const fetchShelfFile = async (file: string) => {
+    const res = await fetch(new URL(`/api/shelves/files/${file}`, baseUrl).href)
+    if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)
+    return res.arrayBuffer()
+  }
 
   const files = printFiles(state)
   // `download` rows are never zipped: whatever mesh this repo has for them is a
@@ -183,23 +207,30 @@ export async function buildStlBundle(
   const sums: string[] = []
   const mismatches: string[] = []
   const verified: string[] = []
+  const usedNames = new Set<string>()
   for (let i = 0; i < printable.length; i++) {
     const entry = printable[i]
     onProgress?.({ done: i, total: printable.length, file: entry.file })
 
     const folder = root.folder(entry.group)
     if (!folder) throw new Error(`Could not create the ${entry.group} folder.`)
-    const bytes = await fetchFile(entry.file)
-    folder.file(entry.file, bytes)
+    const custom = entry.customShelfId ? customShelf(entry.customShelfId) : undefined
+    if (entry.customShelfId && !custom) throw new Error(`${entry.part} is not in the shelf catalog.`)
+    const bytes = custom ? await fetchShelfFile(custom.file) : await fetchFile(entry.file)
+    const name = archiveName(entry, usedNames)
+    folder.file(name, bytes)
     const digest = sha256Hex(bytes)
-    sums.push(`${digest}  ${entry.group}/${entry.file}`)
+    sums.push(`${digest}  ${entry.group}/${name}`)
 
-    // A row that claims a source is only as good as the bytes behind it. When a
-    // reference hash exists, check it here rather than trusting the filename.
-    const ref = REFERENCE_HASHES[entry.file]
+    // A row that claims a source is only as good as the bytes behind it. An
+    // owner upload is checked against the hash the server recorded for it; a
+    // builtin against REFERENCE_HASHES.
+    const ref = custom
+      ? { sha256: custom.sha256, origin: `owner upload ${custom.originalName}` }
+      : REFERENCE_HASHES[entry.file]
     if (ref) {
-      if (ref.sha256 === digest) verified.push(`${entry.file} — ${ref.origin}`)
-      else mismatches.push(`${entry.file} — expected ${ref.sha256.slice(0, 12)}… from ${ref.origin}, got ${digest.slice(0, 12)}…`)
+      if (ref.sha256 === digest) verified.push(`${name} — ${ref.origin}`)
+      else mismatches.push(`${name} — expected ${ref.sha256.slice(0, 12)}… from ${ref.origin}, got ${digest.slice(0, 12)}…`)
     }
   }
 
@@ -312,6 +343,7 @@ function buildInWorker(
       )
     }
 
-    worker.postMessage({ state, baseUrl: document.baseURI })
+    // The worker has no registry of its own, so the catalog travels with the build.
+    worker.postMessage({ state, baseUrl: document.baseURI, customShelves: getCustomShelves() })
   })
 }

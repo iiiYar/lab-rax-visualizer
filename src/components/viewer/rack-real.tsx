@@ -1,4 +1,4 @@
-import { Fragment } from 'react'
+import { Fragment, Suspense } from 'react'
 import { SCALE, shelfDeviceSlots } from '../../domain/constants'
 import {
   DEPTH_RAIL_FOOT_HOLE_OFFSET_MM,
@@ -16,13 +16,15 @@ import {
   WIDTH_RAIL_BAR_TOP_MM,
   devicePartColor,
 } from '../../domain/models'
-import type { DeviceType, PartType, ShelfType } from '../../domain/types'
+import { isCustomShelfType } from '../../domain/types'
+import type { BuiltinShelfType, DeviceType, PartType, Shelf } from '../../domain/types'
 import { JOINER_FILE, LONG_JOINER_VIEW_FILE } from '../../domain/print-files'
 import { shelfSide } from '../../domain/shelves'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
 import type { PreparedGeometry } from './materials/use-model-geometry'
 import { RealMesh } from './parts/real-mesh'
+import { CustomShelfMesh } from './custom-shelf-mesh'
 
 const PI = Math.PI
 
@@ -139,7 +141,7 @@ export function RackReal() {
   const shelfMinItx2u = useStlPart(SHELF_TYPE_FILES['shelf-minitx-2u'])
   const shelfMinItxGpu3u = useStlPart(SHELF_TYPE_FILES['shelf-minitx-gpu-3u'])
   const shelfMx64_1u = useStlPart(SHELF_TYPE_FILES['shelf-mx64-1u'])
-  const shelfGeoByType: Record<ShelfType, PreparedGeometry> = {
+  const shelfGeoByType: Record<BuiltinShelfType, PreparedGeometry> = {
     'plate-1u': plate1u,
     'plate-2u': plate2u,
     'shelf-open-1u': shelfOpen1u,
@@ -282,6 +284,54 @@ export function RackReal() {
   // right below where the height rail's top-of-slot would be.
   const shelfY = (geo: PreparedGeometry, topRow: number) =>
     topRow * U_MM + WIDTH_RAIL_BAR_TOP_MM + U_MM - geo.size.y
+
+  // One shelf, laid out from its prepared model: the mesh, the devices fitted
+  // into its slots, and the rear turn when it hangs on the back rails.
+  const renderShelf = (shelf: Shelf, geo: PreparedGeometry) => {
+    const topRow = shelf.startU + shelf.u - 1
+    const shelfPosY = shelfY(geo, topRow)
+    const shelfPosZ = shelfZ(geo)
+    const body = (
+      <>
+        <RealMesh geometry={geo.geometry} color={shelf.color} position={[0, shelfPosY, shelfPosZ]} />
+        {shelfDeviceSlots(shelf.shelfType).map((slot, index) => {
+          const device = shelf.devices?.[index]
+          if (!device) return null
+          const parts = devicePartsByType[device]
+          const ref = parts[0]
+          const baseX = slot.x
+          const baseY = shelfPosY + slot.y - ref.size.y / 2
+          const baseZ = shelfPosZ + slot.z - ref.size.z / 2
+          return (
+            <Fragment key={`device-${shelf.id}-${index}`}>
+              {parts.map((part, partIndex) => (
+                <RealMesh
+                  key={partIndex}
+                  geometry={part.geometry}
+                  color={devicePartColor(shelf.deviceColors, device, partIndex)}
+                  position={[
+                    baseX + (ref.offset.x - part.offset.x),
+                    baseY + (ref.offset.y - part.offset.y),
+                    baseZ + (ref.offset.z - part.offset.z),
+                  ]}
+                />
+              ))}
+            </Fragment>
+          )
+        })}
+      </>
+    )
+    // A rear shelf is the same part turned 180° about the rack's centre line,
+    // which mirrors it through the centre onto the back rails. Its devices sit
+    // inside the same group, so they turn with it.
+    return shelfSide(shelf) === 'back' ? (
+      <group key={`shelf-${shelf.id}`} rotation={[0, PI, 0]}>
+        {body}
+      </group>
+    ) : (
+      <Fragment key={`shelf-${shelf.id}`}>{body}</Fragment>
+    )
+  }
 
   return (
     <group scale={[1 / SCALE, 1 / SCALE, 1 / SCALE]} position={[0, centerOffset, 0]}>
@@ -624,54 +674,15 @@ export function RackReal() {
           is the reference and everything else is shifted by the difference. */}
       {visibility.shelves &&
         shelves.map((shelf) => {
-          const geo = shelfGeoByType[shelf.shelfType]
-          const topRow = shelf.startU + shelf.u - 1
-          const shelfPosY = shelfY(geo, topRow)
-          const shelfPosZ = shelfZ(geo)
-          const body = (
-            <>
-              <RealMesh
-                geometry={geo.geometry}
-                color={shelf.color}
-                position={[0, shelfPosY, shelfPosZ]}
-              />
-              {shelfDeviceSlots(shelf.shelfType).map((slot, index) => {
-                const device = shelf.devices?.[index]
-                if (!device) return null
-                const parts = devicePartsByType[device]
-                const ref = parts[0]
-                const baseX = slot.x
-                const baseY = shelfPosY + slot.y - ref.size.y / 2
-                const baseZ = shelfPosZ + slot.z - ref.size.z / 2
-                return (
-                  <Fragment key={`device-${shelf.id}-${index}`}>
-                    {parts.map((part, partIndex) => (
-                      <RealMesh
-                        key={partIndex}
-                        geometry={part.geometry}
-                        color={devicePartColor(shelf.deviceColors, device, partIndex)}
-                        position={[
-                          baseX + (ref.offset.x - part.offset.x),
-                          baseY + (ref.offset.y - part.offset.y),
-                          baseZ + (ref.offset.z - part.offset.z),
-                        ]}
-                      />
-                    ))}
-                  </Fragment>
-                )
-              })}
-            </>
-          )
-          // A rear shelf is the same part turned 180° about the rack's centre
-          // line, which mirrors it through the centre onto the back rails. Its
-          // devices sit inside the same group, so they turn with it.
-          return shelfSide(shelf) === 'back' ? (
-            <group key={`shelf-${shelf.id}`} rotation={[0, PI, 0]}>
-              {body}
-            </group>
-          ) : (
-            <Fragment key={`shelf-${shelf.id}`}>{body}</Fragment>
-          )
+          // Owner uploads load their own mesh, then are laid out like a builtin.
+          if (isCustomShelfType(shelf.shelfType)) {
+            return (
+              <Suspense key={`shelf-${shelf.id}`} fallback={null}>
+                <CustomShelfMesh id={shelf.shelfType} render={(geo) => renderShelf(shelf, geo)} />
+              </Suspense>
+            )
+          }
+          return renderShelf(shelf, shelfGeoByType[shelf.shelfType])
         })}
     </group>
   )

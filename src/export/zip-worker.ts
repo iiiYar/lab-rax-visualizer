@@ -12,10 +12,13 @@
  */
 import { buildStlBundle } from './export-stl-bundle'
 import type { BuildState } from '../domain/types'
+import { setCustomShelves, type CustomShelf } from '../domain/custom-shelves'
 
 interface ZipRequest {
   state: BuildState
   baseUrl: string
+  /** The owner's shelf catalog, which this worker has no other way to read. */
+  customShelves: CustomShelf[]
 }
 
 interface WorkerScope {
@@ -26,8 +29,9 @@ interface WorkerScope {
 const scope = self as unknown as WorkerScope
 
 scope.onmessage = async (event: MessageEvent<ZipRequest>) => {
-  const { state, baseUrl } = event.data
+  const { state, baseUrl, customShelves } = event.data
   try {
+    setCustomShelves(customShelves)
     const { blob, filename } = await buildStlBundle(state, {
       baseUrl,
       onProgress: (p) => scope.postMessage({ type: 'progress', ...p }),

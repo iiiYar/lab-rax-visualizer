@@ -29,7 +29,7 @@ export interface PreparedGeometry {
  * bottom-center (x=0, z=0 at the footprint center, y=0 at the lowest point)
  * so instances can be positioned/stacked with simple offsets.
  */
-function prepareGeometry(
+export function prepareGeometry(
   geo: THREE.BufferGeometry,
   extraRotY: number,
   extraRotX = 0,
@@ -52,7 +52,7 @@ function prepareGeometry(
   return { geometry: geo, size, offset }
 }
 
-function firstMeshGeometry(root: THREE.Object3D): THREE.BufferGeometry {
+export function firstMeshGeometry(root: THREE.Object3D): THREE.BufferGeometry {
   root.updateWorldMatrix(true, true)
   let found: THREE.BufferGeometry | null = null
   root.traverse((obj) => {

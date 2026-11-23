@@ -4,6 +4,7 @@ import { SizeControl } from '../controls/size-control'
 import { ColorsSection } from '../controls/colors-section'
 import { PartControl } from '../controls/part-control'
 import { ShelfEditor } from '../controls/shelf-editor'
+import { CustomShelvesPanel } from '../controls/custom-shelves-panel'
 import { SavedBuilds } from '../controls/saved-builds'
 import { DeviceEditor } from '../controls/device-editor'
 import { VisibilityToggle } from '../../ui/visibility-toggle'
@@ -51,6 +52,7 @@ export function ControlsPanel({ footer }: { footer?: React.ReactNode }) {
         action={<VisibilityToggle visible={shelvesVisible} onToggle={() => toggleVisibility('shelves')} />}
       >
         <ShelfEditor />
+        <CustomShelvesPanel />
       </CollapsibleSection>
 
       {hasDeviceSlots && (

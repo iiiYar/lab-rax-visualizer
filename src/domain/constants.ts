@@ -1,4 +1,6 @@
+import { isCustomShelfType } from './types'
 import type {
+  BuiltinShelfType,
   DeviceType,
   OptionalPart,
   PartMaterial,
@@ -7,6 +9,7 @@ import type {
   ShelfType,
   ShelfU,
 } from './types'
+import { customShelf } from './custom-shelves'
 
 // Work the whole scene in metres-ish units: divide mm by this scale factor so
 // three.js camera framing stays in a comfortable range.
@@ -103,7 +106,7 @@ export function hasMaterialChoice(part: PartType): boolean {
 // --- Shelf types ---------------------------------------------------------
 // Real Lab Rax shelf parts, each its own fixed-size STL (see domain/models.ts).
 export interface ShelfTypeDef {
-  id: ShelfType
+  id: BuiltinShelfType
   label: string
   u: ShelfU
   /** Front-to-back reach of the part (mm), measured from the model's footprint. */
@@ -135,16 +138,23 @@ export const SHELF_TYPES: ShelfTypeDef[] = [
  */
 export const SHELF_USABLE_DEPTH_MM = 245.85
 
+// Custom shelves come from the owner's catalog (see domain/custom-shelves.ts).
+// An id the catalog does not (yet) know gets the plain fallbacks: 1U, its own
+// id as the label, and a plate's depth.
+
 export function shelfTypeU(id: ShelfType): ShelfU {
+  if (isCustomShelfType(id)) return customShelf(id)?.u ?? 1
   return SHELF_TYPES.find((t) => t.id === id)?.u ?? 1
 }
 
 export function shelfTypeLabel(id: ShelfType): string {
+  if (isCustomShelfType(id)) return customShelf(id)?.label ?? id
   return SHELF_TYPES.find((t) => t.id === id)?.label ?? id
 }
 
 /** Front-to-back depth of a shelf type in mm; unknown ids count as 8 (a plate). */
 export function shelfTypeDepth(id: ShelfType): number {
+  if (isCustomShelfType(id)) return customShelf(id)?.depthMm ?? 8
   return SHELF_TYPES.find((t) => t.id === id)?.depthMm ?? 8
 }
 
@@ -210,7 +220,7 @@ const PLATE_KEYSTONE_REAR_Z = -4.755
  * model: exactly 0, ±43.5, ±87mm from the plate's centre. */
 const FAN_PLATE_SLOT_X = [-87, -43.5, 0, 43.5, 87]
 
-export const SHELF_DEVICE_SLOTS: Partial<Record<ShelfType, ShelfDeviceSlots>> = {
+export const SHELF_DEVICE_SLOTS: Partial<Record<BuiltinShelfType, ShelfDeviceSlots>> = {
   // "1U 40mm Fan Plate v2": a 252 x 42 x 6mm front plate with five 38 x 42mm
   // openings (43.5mm pitch) that take one 40mm fan each. The plate's own
   // mid-plane is z = 0 and it's 6mm thick, so its rear face is z = -3 — fans
@@ -299,7 +309,9 @@ export const SHELF_DEVICE_SLOTS: Partial<Record<ShelfType, ShelfDeviceSlots>> = 
   },
 }
 
+/** Owner-uploaded shelves have no device slots. */
 export function shelfDeviceSlots(shelfType: ShelfType): DeviceSlot[] {
+  if (isCustomShelfType(shelfType)) return []
   return SHELF_DEVICE_SLOTS[shelfType]?.slots ?? []
 }
 
@@ -324,7 +336,7 @@ export function shelfHasDeviceSlots(shelfType: ShelfType): boolean {
  * list, even all-empty, is always respected as the user's choice. See
  * `normalizeShelfDevices` in domain/shelves.ts.
  */
-export const SHELF_DEFAULT_DEVICES: Partial<Record<ShelfType, DeviceType>> = {
+export const SHELF_DEFAULT_DEVICES: Partial<Record<BuiltinShelfType, DeviceType>> = {
   'shelf-hdd-8bay-3u': 'hdd-caddy-handle',
   'shelf-mx64-1u': 'mx64',
 }

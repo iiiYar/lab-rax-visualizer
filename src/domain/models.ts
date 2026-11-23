@@ -2,7 +2,7 @@
 // stylized procedural geometry in domain/constants.ts. Kept separate so the
 // procedural fallback (components/viewer/Rack.tsx) is unaffected.
 
-import type { DeviceType, ShelfType } from './types'
+import type { BuiltinShelfType, DeviceType } from './types'
 
 export const MODEL_BASE = '/models-3d/'
 
@@ -77,7 +77,7 @@ export const MODEL_FILES = {
  * they carry their own colour; "HDD Bay Rails" (a vented slab matching no
  * enclosure face or photo) is deliberately omitted.
  */
-export const SHELF_TYPE_FILES: Record<ShelfType, string> = {
+export const SHELF_TYPE_FILES: Record<BuiltinShelfType, string> = {
   'plate-1u': 'plate-1u.stl',
   'plate-2u': 'plate-2u.stl',
   'shelf-open-1u': 'shelf-open-1u.stl',

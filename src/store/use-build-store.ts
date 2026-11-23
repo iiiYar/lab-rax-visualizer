@@ -50,8 +50,9 @@ interface BuildActions {
    * clear them all) — the Devices editor is one row per shelf, not one per
    * slot. See SHELF_DEVICE_SLOTS in domain/constants.ts. */
   fillShelfDevices: (id: string, device: DeviceType | null) => void
-  /** Add a 1U plate on the given rail side, in the first gap on that side. */
-  addShelf: (side?: ShelfSide) => void
+  /** Add a shelf (a 1U plate unless a type is given) on the given rail side,
+   * in the first gap there that fits its U and depth. */
+  addShelf: (side?: ShelfSide, shelfType?: ShelfType) => void
   /** Move a shelf to the other rail side. No-op if it would conflict there. */
   setShelfSide: (id: string, side: ShelfSide) => void
   removeShelf: (id: string) => void
@@ -205,10 +206,15 @@ export const useBuildStore = create<BuildStore>()(
           }),
         })),
 
-      addShelf: (side = 'front') =>
+      addShelf: (side = 'front', shelfType: ShelfType = 'plate-1u') =>
         set((s) => {
-          const shelfType: ShelfType = 'plate-1u'
-          const startU = findFirstGap(s.shelves, s.rackU, 1, side, shelfTypeDepth(shelfType))
+          const startU = findFirstGap(
+            s.shelves,
+            s.rackU,
+            shelfTypeU(shelfType),
+            side,
+            shelfTypeDepth(shelfType),
+          )
           if (startU === null) return {} // no room left on this side — no-op
           const first = s.shelves[0]
           const template = first
