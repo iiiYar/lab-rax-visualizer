@@ -343,18 +343,24 @@ function AddShelfForm() {
       setStatus({ ok: false, text: 'The file is too large (6 MB limit).' })
       return
     }
+    const data = await picked.arrayBuffer()
+    // Keep the bytes even when the browser cannot draw the file: a Bambu
+    // project with external object files is still the right print file, it
+    // just needs a 3D view STL next to it.
+    setBytes(data)
+    if (!label) setLabel(picked.name.replace(/\.(stl|3mf)$/i, '').slice(0, 60))
     try {
-      const data = await picked.arrayBuffer()
       const isThreeMf = picked.name.toLowerCase().endsWith('.3mf')
       const geo = isThreeMf
         ? firstMeshGeometry(new ThreeMFLoader().parse(data))
         : new STLLoader().parse(data)
-      setBytes(data)
       setGeometry(geo)
-      setU(suggestU(bake(geo, rot).y))
-      if (!label) setLabel(picked.name.replace(/\.(stl|3mf)$/i, '').slice(0, 60))
-    } catch (err) {
-      setStatus({ ok: false, text: `Could not read that file: ${message(err)}` })
+      if (!viewGeometry) setU(suggestU(bake(geo, rot).y))
+    } catch {
+      setStatus({
+        ok: false,
+        text: 'The viewer cannot draw this file (multi-part project?). Add a 3D view STL below to upload it.',
+      })
     }
   }
 
