@@ -106,24 +106,34 @@ export interface ShelfTypeDef {
   id: ShelfType
   label: string
   u: ShelfU
+  /** Front-to-back reach of the part (mm), measured from the model's footprint. */
+  depthMm: number
 }
 
 export const SHELF_TYPES: ShelfTypeDef[] = [
-  { id: 'plate-1u', label: 'Plate (1U)', u: 1 },
-  { id: 'plate-2u', label: 'Plate (2U)', u: 2 },
-  { id: 'shelf-open-1u', label: 'Open shelf (1U)', u: 1 },
-  { id: 'shelf-slotted-1u', label: 'Slotted shelf (1U)', u: 1 },
-  { id: 'shelf-plate-40mm-fan-1u', label: '40mm fan plate (1U)', u: 1 },
-  { id: 'shelf-plate-80mm-fan-2u', label: '80mm fan plate (2U)', u: 2 },
-  { id: 'shelf-plate-keystone-1u', label: 'Keystone plate (1U)', u: 1 },
-  { id: 'shelf-sbc-7-2u', label: 'SBC holder ×7 (2U)', u: 2 },
-  { id: 'shelf-minisforum-ms-1u', label: 'Minisforum MS (1U)', u: 1 },
-  { id: 'shelf-tiny-rack-left-keystone', label: 'Tiny rack left keystone (1U)', u: 1 },
-  { id: 'shelf-hdd-8bay-3u', label: 'HDD enclosure 8-bay (3U)', u: 3 },
-  { id: 'shelf-minitx-2u', label: 'Mini-ITX + ATX PSU (2U)', u: 2 },
-  { id: 'shelf-minitx-gpu-3u', label: 'Mini-ITX GPU fan (3U)', u: 3 },
-  { id: 'shelf-mx64-1u', label: 'Cisco Meraki MX64 (1U)', u: 1 },
+  { id: 'plate-1u', label: 'Plate (1U)', u: 1, depthMm: 8 },
+  { id: 'plate-2u', label: 'Plate (2U)', u: 2, depthMm: 8 },
+  { id: 'shelf-open-1u', label: 'Open shelf (1U)', u: 1, depthMm: 180.12 },
+  { id: 'shelf-slotted-1u', label: 'Slotted shelf (1U)', u: 1, depthMm: 237 },
+  { id: 'shelf-plate-40mm-fan-1u', label: '40mm fan plate (1U)', u: 1, depthMm: 6 },
+  { id: 'shelf-plate-80mm-fan-2u', label: '80mm fan plate (2U)', u: 2, depthMm: 5 },
+  { id: 'shelf-plate-keystone-1u', label: 'Keystone plate (1U)', u: 1, depthMm: 9.51 },
+  { id: 'shelf-sbc-7-2u', label: 'SBC holder ×7 (2U)', u: 2, depthMm: 9 },
+  { id: 'shelf-minisforum-ms-1u', label: 'Minisforum MS (1U)', u: 1, depthMm: 179 },
+  { id: 'shelf-tiny-rack-left-keystone', label: 'Tiny rack left keystone (1U)', u: 1, depthMm: 190 },
+  { id: 'shelf-hdd-8bay-3u', label: 'HDD enclosure 8-bay (3U)', u: 3, depthMm: 193.5 },
+  { id: 'shelf-minitx-2u', label: 'Mini-ITX + ATX PSU (2U)', u: 2, depthMm: 181 },
+  { id: 'shelf-minitx-gpu-3u', label: 'Mini-ITX GPU fan (3U)', u: 3, depthMm: 180.88 },
+  { id: 'shelf-mx64-1u', label: 'Cisco Meraki MX64 (1U)', u: 1, depthMm: 180.4 },
 ]
+
+/**
+ * Depth a shelf can use between the two rails' faces. Front width-rail front
+ * edge to back width-rail back edge = RACK_DEPTH_MM 185 + width-rail depth
+ * 54.85 = 239.85, plus the 3 mm shelf overshoot at each face
+ * (SHELF_OVERSHOOT_MM in rack-real.tsx) = 245.85.
+ */
+export const SHELF_USABLE_DEPTH_MM = 245.85
 
 export function shelfTypeU(id: ShelfType): ShelfU {
   return SHELF_TYPES.find((t) => t.id === id)?.u ?? 1
@@ -131,6 +141,11 @@ export function shelfTypeU(id: ShelfType): ShelfU {
 
 export function shelfTypeLabel(id: ShelfType): string {
   return SHELF_TYPES.find((t) => t.id === id)?.label ?? id
+}
+
+/** Front-to-back depth of a shelf type in mm; unknown ids count as 8 (a plate). */
+export function shelfTypeDepth(id: ShelfType): number {
+  return SHELF_TYPES.find((t) => t.id === id)?.depthMm ?? 8
 }
 
 // --- Devices -----------------------------------------------------------------

@@ -1,6 +1,48 @@
-import { SHELF_DEFAULT_DEVICES, SHELF_TYPES, shelfDeviceSlots, shelfTypeU } from './constants'
-import type { DeviceType, PartStyle, Shelf, ShelfType, ShelfU } from './types'
+import {
+  SHELF_DEFAULT_DEVICES,
+  SHELF_TYPES,
+  SHELF_USABLE_DEPTH_MM,
+  shelfDeviceSlots,
+  shelfTypeDepth,
+  shelfTypeU,
+} from './constants'
+import type { DeviceType, PartStyle, Shelf, ShelfSide, ShelfType, ShelfU } from './types'
 import { DEFAULT_STYLES } from './defaults'
+
+/** Which rails a shelf hangs on. Shelves saved before rear shelves are front. */
+export function shelfSide(shelf: Pick<Shelf, 'side'>): ShelfSide {
+  return shelf.side ?? 'front'
+}
+
+/**
+ * A copy of `shelf` on `side`. Front is stored as an absent field, so builds
+ * that never use rear shelves serialize exactly as they did before.
+ */
+export function withShelfSide(shelf: Shelf, side: ShelfSide): Shelf {
+  const next: Shelf = { ...shelf, side }
+  if (side === 'front') delete next.side
+  return next
+}
+
+/**
+ * Whether a shelf on `side` with depth `depth` clashes with `other`, ignoring
+ * rows. Same side always clashes; opposite sides clash only when the two parts
+ * together are deeper than the rack's usable depth.
+ */
+function sideDepthConflict(side: ShelfSide, depth: number, other: Shelf): boolean {
+  return side === shelfSide(other) || depth + shelfTypeDepth(other.shelfType) > SHELF_USABLE_DEPTH_MM
+}
+
+/**
+ * Two shelves conflict when their rows overlap and they can't share that
+ * space: the same side, or opposite sides whose depths sum past the usable
+ * depth. So a front plate and a back plate can share a row, but a front tray
+ * and a back tray cannot.
+ */
+export function shelvesConflict(a: Shelf, b: Shelf): boolean {
+  if (a.startU + a.u <= b.startU || b.startU + b.u <= a.startU) return false
+  return sideDepthConflict(shelfSide(a), shelfTypeDepth(a.shelfType), b)
+}
 
 /**
  * Deterministic id (Date.now/Math.random are avoided for reproducible
@@ -93,11 +135,28 @@ export function sumU(shelves: Shelf[]): number {
   return shelves.reduce((n, s) => n + s.u, 0)
 }
 
-/** Rows (0-indexed from the bottom) covered by any shelf. */
-function occupiedRows(shelves: Shelf[], rackU: number, excludeId?: string): boolean[] {
+/** Rack units used by shelves on each side. */
+export function sumUBySide(shelves: Shelf[]): { front: number; back: number } {
+  const out = { front: 0, back: 0 }
+  for (const s of shelves) out[shelfSide(s)] += s.u
+  return out
+}
+
+/**
+ * Rows (0-indexed from the bottom) a candidate shelf on `side` with depth
+ * `depth` cannot use, because some other shelf in that row conflicts with it.
+ */
+function occupiedRows(
+  shelves: Shelf[],
+  rackU: number,
+  side: ShelfSide = 'front',
+  depth = 8,
+  excludeId?: string,
+): boolean[] {
   const occupied = new Array(rackU).fill(false)
   for (const s of shelves) {
     if (s.id === excludeId) continue
+    if (!sideDepthConflict(side, depth, s)) continue
     for (let i = s.startU; i < s.startU + s.u && i < rackU; i++) {
       if (i >= 0) occupied[i] = true
     }
@@ -106,14 +165,20 @@ function occupiedRows(shelves: Shelf[], rackU: number, excludeId?: string): bool
 }
 
 /**
- * First available row with `size` contiguous free rows, scanning from the
- * TOP of the rack down — so the first shelf added lands at the top, and each
- * one after it fills into the next gap below (which, for a simple sequential
- * add, is the gap right underneath what's already there). Returns null if no
- * such gap exists anywhere, used to decide whether "add shelf" is enabled.
+ * First available row with `size` contiguous free rows on `side`, scanning
+ * from the TOP of the rack down — so the first shelf added lands at the top,
+ * and each one after it fills into the next gap below. `depth` is the
+ * candidate's depth (defaults to a 1U plate). Returns null if no such gap
+ * exists anywhere, used to decide whether "add shelf" is enabled.
  */
-export function findFirstGap(shelves: Shelf[], rackU: number, size: ShelfU = 1): number | null {
-  const occupied = occupiedRows(shelves, rackU)
+export function findFirstGap(
+  shelves: Shelf[],
+  rackU: number,
+  size: ShelfU = 1,
+  side: ShelfSide = 'front',
+  depth = 8,
+): number | null {
+  const occupied = occupiedRows(shelves, rackU, side, depth)
   for (let start = rackU - size; start >= 0; start--) {
     let fits = true
     for (let i = start; i < start + size; i++) {
@@ -137,10 +202,17 @@ export function findFirstGap(shelves: Shelf[], rackU: number, size: ShelfU = 1):
  * the shelf-type selector so a shelf can never be resized into occupied or
  * out-of-bounds space.
  */
-export function maxDownGrowth(shelves: Shelf[], shelfId: string, topRow: number): number {
+export function maxDownGrowth(
+  shelves: Shelf[],
+  shelfId: string,
+  topRow: number,
+  side: ShelfSide = 'front',
+  depth = 8,
+): number {
   const occupied = new Set<number>()
   for (const s of shelves) {
     if (s.id === shelfId) continue
+    if (!sideDepthConflict(side, depth, s)) continue
     for (let i = s.startU; i < s.startU + s.u; i++) occupied.add(i)
   }
   let size = 0
@@ -184,7 +256,11 @@ export function clampShelvesToRack(shelves: Shelf[], rackU: number): Shelf[] {
     if (shelf.startU + u > rackU) continue
     const id = seenIds.has(shelf.id) ? `s${++maxId}` : shelf.id
     seenIds.add(id)
-    result.push({ ...shelf, id, shelfType, u, devices: normalizeShelfDevices(shelfType, shelf.devices) })
+    const clamped: Shelf = { ...shelf, id, shelfType, u, devices: normalizeShelfDevices(shelfType, shelf.devices) }
+    // Only 'back' is kept; anything else is a front shelf (field omitted).
+    if (shelf.side === 'back') clamped.side = 'back'
+    else delete clamped.side
+    result.push(clamped)
   }
   return result
 }

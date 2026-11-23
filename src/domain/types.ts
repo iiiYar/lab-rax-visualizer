@@ -38,6 +38,9 @@ export interface PartStyle {
 
 export type ShelfU = 1 | 2 | 3 | 4
 
+/** Which face of the rack a shelf hangs from: the front rails or the back rails. */
+export type ShelfSide = 'front' | 'back'
+
 /**
  * Which post-joiner file the build ships. `short` is the 39.7 mm splice plate
  * from the extension pack; `long` is the owner-supplied 217.7 mm brass-insert
@@ -97,6 +100,9 @@ export interface Shelf {
    * missing entry falls back to the part's real-world default, so the list
    * needs no length normalization. */
   deviceColors?: string[]
+  /** Which rails the shelf hangs on. `undefined` = 'front' (saves and share
+   * links made before rear shelves existed). */
+  side?: ShelfSide
 }
 export type Toggles = Record<OptionalPart, boolean>
 

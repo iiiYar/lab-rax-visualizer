@@ -9,10 +9,18 @@ import type {
   PartType,
   PartVisibility,
   Shelf,
+  ShelfSide,
   ShelfType,
 } from '../domain/types'
 import { PALETTE_SIZE } from '../domain/types'
-import { MAX_U, MIN_U, PART_TYPES, shelfDeviceSlots, shelfTypeU } from '../domain/constants'
+import {
+  MAX_U,
+  MIN_U,
+  PART_TYPES,
+  shelfDeviceSlots,
+  shelfTypeDepth,
+  shelfTypeU,
+} from '../domain/constants'
 import { DEFAULT_PALETTE, makeAllVisible, makeDefaultBuild } from '../domain/defaults'
 import { defaultSegments, normalizeSegments } from '../domain/segments'
 import {
@@ -21,6 +29,9 @@ import {
   makeShelf,
   maxDownGrowth,
   normalizeShelfDevices,
+  shelfSide,
+  shelvesConflict,
+  withShelfSide,
 } from '../domain/shelves'
 import { decodeBuild, readShareParam } from '../share/url-state'
 
@@ -39,7 +50,10 @@ interface BuildActions {
    * clear them all) — the Devices editor is one row per shelf, not one per
    * slot. See SHELF_DEVICE_SLOTS in domain/constants.ts. */
   fillShelfDevices: (id: string, device: DeviceType | null) => void
-  addShelf: () => void
+  /** Add a 1U plate on the given rail side, in the first gap on that side. */
+  addShelf: (side?: ShelfSide) => void
+  /** Move a shelf to the other rail side. No-op if it would conflict there. */
+  setShelfSide: (id: string, side: ShelfSide) => void
   removeShelf: (id: string) => void
   loadBuild: (state: BuildState) => void
   reset: () => void
@@ -142,8 +156,10 @@ export const useBuildStore = create<BuildStore>()(
           // maxDownGrowth) — the editor only offers types that already fit,
           // this is a safety net for callers that don't pre-filter.
           const topRow = shelf.startU + shelf.u - 1
-          const cap = Math.max(shelf.u, maxDownGrowth(s.shelves, id, topRow))
-          if (u > cap) return {}
+          // The new type's own depth decides what it can grow into: a shrink
+          // that keeps the same top row can still clash on the other rail.
+          const cap = maxDownGrowth(s.shelves, id, topRow, shelfSide(shelf), shelfTypeDepth(shelfType))
+          if (shelfType !== shelf.shelfType && u > cap) return {}
           const startU = topRow - u + 1
           // `solid` defaults from the chosen type (plates are solid, the
           // rest have a center hole) but stays independently overridable
@@ -189,15 +205,26 @@ export const useBuildStore = create<BuildStore>()(
           }),
         })),
 
-      addShelf: () =>
+      addShelf: (side = 'front') =>
         set((s) => {
-          const startU = findFirstGap(s.shelves, s.rackU, 1)
-          if (startU === null) return {} // no room left — no-op
+          const shelfType: ShelfType = 'plate-1u'
+          const startU = findFirstGap(s.shelves, s.rackU, 1, side, shelfTypeDepth(shelfType))
+          if (startU === null) return {} // no room left on this side — no-op
           const first = s.shelves[0]
           const template = first
             ? { color: first.color, pattern: first.pattern, solid: first.solid }
             : undefined
-          return { shelves: [...s.shelves, makeShelf('plate-1u', startU, s.shelves, template)] }
+          const shelf = withShelfSide(makeShelf(shelfType, startU, s.shelves, template), side)
+          return { shelves: [...s.shelves, shelf] }
+        }),
+
+      setShelfSide: (id, side) =>
+        set((s) => {
+          const shelf = s.shelves.find((sh) => sh.id === id)
+          if (!shelf || shelfSide(shelf) === side) return {}
+          const moved = withShelfSide(shelf, side)
+          if (s.shelves.some((other) => other.id !== id && shelvesConflict(moved, other))) return {}
+          return { shelves: s.shelves.map((sh) => (sh.id === id ? moved : sh)) }
         }),
 
       removeShelf: (id) =>

@@ -83,14 +83,20 @@ export function decodeBuild(param: string): BuildState | null {
     if (Array.isArray(raw.s)) {
       // startU is required — links encoded before it existed simply drop
       // their shelves rather than crash on the missing field.
-      shelves = (raw.s as Shelf[]).filter(
-        (s) =>
-          s &&
-          typeof s === 'object' &&
-          [1, 2, 3, 4].includes(s.u) &&
-          typeof s.startU === 'number' &&
-          s.startU >= 0,
-      )
+      shelves = (raw.s as Shelf[])
+        .filter(
+          (s) =>
+            s &&
+            typeof s === 'object' &&
+            [1, 2, 3, 4].includes(s.u) &&
+            typeof s.startU === 'number' &&
+            s.startU >= 0,
+        )
+        // Only 'back' survives; anything else is a front shelf (field omitted).
+        .map((s) => {
+          const { side, ...rest } = s
+          return side === 'back' ? { ...rest, side: 'back' as const } : rest
+        })
     }
 
     let palette: Palette = base.palette

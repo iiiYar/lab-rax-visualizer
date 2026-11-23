@@ -18,6 +18,7 @@ import {
 } from '../../domain/models'
 import type { DeviceType, PartType, ShelfType } from '../../domain/types'
 import { JOINER_FILE, LONG_JOINER_VIEW_FILE } from '../../domain/print-files'
+import { shelfSide } from '../../domain/shelves'
 import { useBuildStore } from '../../store/use-build-store'
 import { use3mfPart, useStlPart } from './materials/use-model-geometry'
 import type { PreparedGeometry } from './materials/use-model-geometry'
@@ -627,8 +628,8 @@ export function RackReal() {
           const topRow = shelf.startU + shelf.u - 1
           const shelfPosY = shelfY(geo, topRow)
           const shelfPosZ = shelfZ(geo)
-          return (
-            <Fragment key={`shelf-${shelf.id}`}>
+          const body = (
+            <>
               <RealMesh
                 geometry={geo.geometry}
                 color={shelf.color}
@@ -659,7 +660,17 @@ export function RackReal() {
                   </Fragment>
                 )
               })}
-            </Fragment>
+            </>
+          )
+          // A rear shelf is the same part turned 180° about the rack's centre
+          // line, which mirrors it through the centre onto the back rails. Its
+          // devices sit inside the same group, so they turn with it.
+          return shelfSide(shelf) === 'back' ? (
+            <group key={`shelf-${shelf.id}`} rotation={[0, PI, 0]}>
+              {body}
+            </group>
+          ) : (
+            <Fragment key={`shelf-${shelf.id}`}>{body}</Fragment>
           )
         })}
     </group>

@@ -1,8 +1,20 @@
-import { SHELF_TYPES } from '../../domain/constants'
-import { findFirstGap, maxDownGrowth, sumU } from '../../domain/shelves'
-import type { ShelfType } from '../../domain/types'
+import { SHELF_TYPES, shelfTypeDepth } from '../../domain/constants'
+import {
+  findFirstGap,
+  maxDownGrowth,
+  shelfSide,
+  shelvesConflict,
+  sumUBySide,
+  withShelfSide,
+} from '../../domain/shelves'
+import type { Shelf, ShelfSide, ShelfType } from '../../domain/types'
 import { useBuildStore } from '../../store/use-build-store'
 import { PalettePicker } from '../../ui/palette-picker'
+
+const SIDES: { id: ShelfSide; label: string }[] = [
+  { id: 'front', label: 'Front' },
+  { id: 'back', label: 'Back' },
+]
 
 export function ShelfEditor() {
   const rackU = useBuildStore((s) => s.rackU)
@@ -10,24 +22,32 @@ export function ShelfEditor() {
   const shelves = useBuildStore((s) => s.shelves)
   const setShelfType = useBuildStore((s) => s.setShelfType)
   const setShelfStyle = useBuildStore((s) => s.setShelfStyle)
+  const setShelfSide = useBuildStore((s) => s.setShelfSide)
   const addShelf = useBuildStore((s) => s.addShelf)
   const removeShelf = useBuildStore((s) => s.removeShelf)
 
-  const used = sumU(shelves)
-  // "Full" means no gap anywhere fits even a 1U shelf — shelves don't have
+  const used = sumUBySide(shelves)
+  // "Full" means no gap on a side fits even a 1U plate — shelves don't have
   // to be contiguous, so this isn't just `used >= rackU`.
-  const full = findFirstGap(shelves, rackU, 1) === null
+  const plateDepth = shelfTypeDepth('plate-1u')
+  const frontFull = findFirstGap(shelves, rackU, 1, 'front', plateDepth) === null
+  const backFull = findFirstGap(shelves, rackU, 1, 'back', plateDepth) === null
 
   // Display top-to-bottom, matching the rack itself, regardless of the
   // order shelves were added in.
   const sorted = [...shelves].sort((a, b) => b.startU - a.startU)
+
+  // A side switch is offered only when the shelf would not conflict there.
+  const canMoveTo = (shelf: Shelf, side: ShelfSide) =>
+    shelfSide(shelf) === side ||
+    !shelves.some((other) => other.id !== shelf.id && shelvesConflict(withShelfSide(shelf, side), other))
 
   return (
     <div className="rounded-lg border border-white/5 bg-black/20 p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium">Shelves</span>
         <span className="text-xs text-white/50">
-          {used}U / {rackU}U
+          Front {used.front}U · Back {used.back}U / {rackU}U
         </span>
       </div>
 
@@ -38,9 +58,15 @@ export function ShelfEditor() {
           </p>
         )}
         {sorted.map((shelf) => {
+          const side = shelfSide(shelf)
           const topRow = shelf.startU + shelf.u - 1
-          const cap = Math.max(shelf.u, maxDownGrowth(shelves, shelf.id, topRow))
-          const options = SHELF_TYPES.filter((t) => t.u <= cap)
+          // The type list is depth-aware: a type is offered only if it fits
+          // its rows on this side. The shelf's own type always stays listed.
+          const options = SHELF_TYPES.filter(
+            (t) =>
+              t.id === shelf.shelfType ||
+              t.u <= maxDownGrowth(shelves, shelf.id, topRow, side, t.depthMm),
+          )
           // Row numbers count down from the top of the rack (1 = topmost),
           // independent of `startU`'s bottom-up indexing.
           const topRowNum = rackU - topRow
@@ -62,6 +88,29 @@ export function ShelfEditor() {
                   </option>
                 ))}
               </select>
+
+              <div className="flex items-center gap-0.5" role="group" aria-label="Rail side">
+                {SIDES.map((opt) => {
+                  const pressed = side === opt.id
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      aria-pressed={pressed}
+                      disabled={!canMoveTo(shelf, opt.id)}
+                      onClick={() => setShelfSide(shelf.id, opt.id)}
+                      className={`h-7 rounded px-1.5 text-[10px] ring-1 ring-white/10 disabled:opacity-30 pointer-coarse:h-11 ${
+                        pressed ? 'bg-accent/30 text-accent' : 'bg-black/40 text-white/60 hover:bg-white/10'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {side === 'back' && (
+                <span className="rounded bg-accent/20 px-1 text-[10px] text-accent">back</span>
+              )}
 
               <div className="ml-auto flex items-center gap-1">
                 <PalettePicker
@@ -86,14 +135,22 @@ export function ShelfEditor() {
       <div className="mt-2 flex gap-2">
         <button
           type="button"
-          onClick={addShelf}
-          disabled={full}
+          onClick={() => addShelf('front')}
+          disabled={frontFull}
           className="flex-1 rounded bg-accent/20 px-2 py-1.5 text-xs font-medium text-accent hover:bg-accent/30 disabled:opacity-40 pointer-coarse:py-3"
         >
-          + Add shelf
+          Add front
+        </button>
+        <button
+          type="button"
+          onClick={() => addShelf('back')}
+          disabled={backFull}
+          className="flex-1 rounded bg-accent/20 px-2 py-1.5 text-xs font-medium text-accent hover:bg-accent/30 disabled:opacity-40 pointer-coarse:py-3"
+        >
+          Add back
         </button>
       </div>
-      {full && (
+      {frontFull && backFull && (
         <p className="mt-1 text-[10px] text-white/40">
           No room left — remove or shrink a shelf to add another.
         </p>
