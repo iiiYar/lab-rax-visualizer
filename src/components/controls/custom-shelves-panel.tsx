@@ -84,11 +84,6 @@ function OwnerLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  // Optional assembled STL for the 3D view (the print file may be a multi-plate
-  // project). When given, size and U are measured on it instead.
-  const [viewFile, setViewFile] = useState<File | null>(null)
-  const [viewBytes, setViewBytes] = useState<ArrayBuffer | null>(null)
-  const [viewGeometry, setViewGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   if (!open) {
     return (
@@ -305,6 +300,11 @@ function AddShelfForm() {
   const [u, setU] = useState<ShelfU>(1)
   const [status, setStatus] = useState<{ ok: boolean; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  // Optional assembled STL for the 3D view (the print file may be a multi-plate
+  // project). When given, size and U are measured on it instead.
+  const [viewFile, setViewFile] = useState<File | null>(null)
+  const [viewBytes, setViewBytes] = useState<ArrayBuffer | null>(null)
+  const [viewGeometry, setViewGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   // Baked size of the picked model at the chosen turns; null until a file is read.
   const measured = viewGeometry ?? geometry
