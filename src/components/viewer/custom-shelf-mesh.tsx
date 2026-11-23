@@ -30,15 +30,18 @@ interface Props {
 export function CustomShelfMesh({ id, render }: Props) {
   const shelf = useCustomShelves((s) => s.shelves.find((c) => c.id === id))
   if (!shelf) return null
+  // A display model, when the owner gave one, wins: the print file may be a
+  // multi-plate project whose first mesh is only one of the parts.
+  if (shelf.viewFile) return <CustomStlShelf shelf={shelf} file={shelf.viewFile} render={render} />
   return shelf.file.endsWith('.3mf') ? (
     <Custom3mfShelf shelf={shelf} render={render} />
   ) : (
-    <CustomStlShelf shelf={shelf} render={render} />
+    <CustomStlShelf shelf={shelf} file={shelf.file} render={render} />
   )
 }
 
-function CustomStlShelf({ shelf, render }: { shelf: CustomShelf; render: Props['render'] }) {
-  const raw = useLoader(STLLoader, SHELF_FILE_BASE + shelf.file)
+function CustomStlShelf({ shelf, file, render }: { shelf: CustomShelf; file: string; render: Props['render'] }) {
+  const raw = useLoader(STLLoader, SHELF_FILE_BASE + file)
   const geo = useMemo(
     () => prepareGeometry(raw.clone(), shelf.rotY * DEG, shelf.rotX * DEG, shelf.rotZ * DEG),
     [raw, shelf.rotX, shelf.rotY, shelf.rotZ],

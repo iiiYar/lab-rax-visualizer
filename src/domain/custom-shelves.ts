@@ -23,6 +23,11 @@ export interface CustomShelf {
   originalName: string
   sha256: string
   sourceUrl: string
+  /**
+   * Optional display model (`${id}.view.stl`): the assembled part, drawn in
+   * the viewer when the print file is a multi-plate project. Never exported.
+   */
+  viewFile?: string
   addedAt: string
 }
 

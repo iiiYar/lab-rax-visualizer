@@ -131,7 +131,7 @@ function sendJson(res, status, body) {
 /* ----------------------------------------------------- owner shelf uploads */
 
 const ROTATIONS = [0, 90, 180, 270]
-const SHELF_FILE_RE = /^custom-[0-9a-f]{8}\.(stl|3mf)$/
+const SHELF_FILE_RE = /^custom-[0-9a-f]{8}(\.view)?\.(stl|3mf)$/
 const SHELF_ID_RE = /^custom-[0-9a-f]{8}$/
 const SHELF_MIME = { stl: 'model/stl', '3mf': 'model/3mf' }
 
@@ -337,6 +337,21 @@ async function handleShelves(req, res, pathname) {
       sendJson(res, 400, { error: 'file must be 1 byte to 6 MB' })
       return true
     }
+    // Optional display model: an STL of the assembled part, for when the print
+    // file is a multi-plate project the viewer cannot draw as one shelf.
+    let viewBytes = null
+    if (body.viewDataBase64 !== undefined && body.viewDataBase64 !== '') {
+      const v = typeof body.viewDataBase64 === 'string' ? body.viewDataBase64 : ''
+      if (v.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(v)) {
+        sendJson(res, 400, { error: 'viewDataBase64 is not valid base64' })
+        return true
+      }
+      viewBytes = Buffer.from(v, 'base64')
+      if (viewBytes.length < 84 || viewBytes.length > MAX_SHELF_BYTES) {
+        sendJson(res, 400, { error: 'view file must be an STL up to 6 MB' })
+        return true
+      }
+    }
 
     const sha256 = createHash('sha256').update(bytes).digest('hex')
     const id = `custom-${sha256.slice(0, 8)}`
@@ -353,6 +368,8 @@ async function handleShelves(req, res, pathname) {
         return true
       }
       await writeShelfFile(file, bytes)
+      const viewFile = viewBytes ? `${id}.view.stl` : undefined
+      if (viewBytes) await writeShelfFile(viewFile, viewBytes)
       const entry = {
         id,
         label: fields.label,
@@ -366,6 +383,7 @@ async function handleShelves(req, res, pathname) {
         originalName,
         sha256,
         sourceUrl,
+        ...(viewFile ? { viewFile } : {}),
         addedAt: new Date().toISOString(),
       }
       await writeShelfCatalog([...catalog.shelves, entry])
@@ -428,6 +446,7 @@ async function handleShelves(req, res, pathname) {
       const [removed] = catalog.shelves.splice(index, 1)
       await writeShelfCatalog(catalog.shelves)
       await rm(join(SHELVES_DIR, removed.file), { force: true })
+      if (removed.viewFile) await rm(join(SHELVES_DIR, removed.viewFile), { force: true })
       sendJson(res, 200, { ok: true })
       return true
     })

@@ -18,6 +18,8 @@ export interface NewShelfPayload {
   sourceUrl: string
   originalName: string
   dataBase64: string
+  /** Optional assembled STL for the viewer only. */
+  viewDataBase64?: string
 }
 
 /** Fields `PATCH /api/shelves/<id>` accepts. */

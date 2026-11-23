@@ -84,6 +84,11 @@ function OwnerLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  // Optional assembled STL for the 3D view (the print file may be a multi-plate
+  // project). When given, size and U are measured on it instead.
+  const [viewFile, setViewFile] = useState<File | null>(null)
+  const [viewBytes, setViewBytes] = useState<ArrayBuffer | null>(null)
+  const [viewGeometry, setViewGeometry] = useState<THREE.BufferGeometry | null>(null)
 
   if (!open) {
     return (
@@ -302,7 +307,30 @@ function AddShelfForm() {
   const [busy, setBusy] = useState(false)
 
   // Baked size of the picked model at the chosen turns; null until a file is read.
-  const baked = useMemo(() => (geometry ? bake(geometry, rot) : null), [geometry, rot])
+  const measured = viewGeometry ?? geometry
+  const baked = useMemo(() => (measured ? bake(measured, rot) : null), [measured, rot])
+
+  const onPickView = async (e: ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0] ?? null
+    setStatus(null)
+    setViewFile(picked)
+    setViewBytes(null)
+    setViewGeometry(null)
+    if (!picked) return
+    if (!picked.name.toLowerCase().endsWith('.stl') || picked.size > MAX_FILE_BYTES) {
+      setStatus({ ok: false, text: 'The 3D view must be an STL up to 6 MB.' })
+      return
+    }
+    try {
+      const data = await picked.arrayBuffer()
+      const geo = new STLLoader().parse(data)
+      setViewBytes(data)
+      setViewGeometry(geo)
+      setU(suggestU(bake(geo, rot).y))
+    } catch (err) {
+      setStatus({ ok: false, text: `Could not read that STL: ${message(err)}` })
+    }
+  }
 
   const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const picked = e.target.files?.[0] ?? null
@@ -334,7 +362,7 @@ function AddShelfForm() {
     const next: Rotation = { ...rot }
     next[axis] = value
     setRot(next)
-    if (geometry) setU(suggestU(bake(geometry, next).y))
+    if (measured) setU(suggestU(bake(measured, next).y))
   }
 
   const reset = () => {
@@ -342,6 +370,9 @@ function AddShelfForm() {
     setFile(null)
     setBytes(null)
     setGeometry(null)
+    setViewFile(null)
+    setViewBytes(null)
+    setViewGeometry(null)
     setLabel('')
     setSourceUrl('')
     setRot({ rotX: 0, rotY: 0, rotZ: 0 })
@@ -370,6 +401,7 @@ function AddShelfForm() {
         sourceUrl: sourceUrl.trim(),
         originalName: file.name,
         dataBase64: toBase64(bytes),
+        ...(viewBytes ? { viewDataBase64: toBase64(viewBytes) } : {}),
       })
       setStatus({ ok: true, text: `Added "${entry.label}".` })
       reset()
@@ -391,6 +423,18 @@ function AddShelfForm() {
         onChange={onPick}
         className="block w-full text-[11px] text-white/60"
       />
+      <label className="block text-[10px] text-white/50">
+        3D view (optional STL of the assembled part)
+        <input
+          key={`view-${fileKey}`}
+          type="file"
+          accept=".stl"
+          aria-label="Shelf view file"
+          onChange={onPickView}
+          className="mt-0.5 block w-full text-[11px] text-white/60"
+        />
+      </label>
+      {viewFile && <p className="text-[10px] text-white/40">Viewer draws {viewFile.name}; the archive ships {file?.name ?? 'the print file'}.</p>}
       {baked && (
         <p className="text-[10px] text-white/50">
           Size {round2(baked.x)} × {round2(baked.y)} × {round2(baked.z)} mm · depth {round2(baked.z)} mm
